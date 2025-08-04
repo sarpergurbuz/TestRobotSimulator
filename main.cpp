@@ -14,6 +14,7 @@
 #include <AndreiUtils/utilsPose.hpp>
 #include <AndreiUtils/utilsThread.h>
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianAbility.h>
+#include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
 #include <ConceptLibrary/entities/OpenableObjectConcept.h>
 #include <ConceptLibrary/entities/PourerConcept.h>
@@ -862,10 +863,14 @@ public:
             auto const &goalPose= goalLocation.getGlobalPose();
             auto const goalPosed = goalPose.q;
             executeMoveRobotBodyCartesian(goalPosed);
-        } else if (ability.instanceId.s == "MoveGripper") {
+        } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
             // executeMoveGripper(MoveGripperParam(true));  // hardcoded for now
-        } else if (ability.instanceId.s == "SetObjectInGripper") {
-            // executeSetObjectInGripper(SetObjectInGripperParam(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1")));
+        } else if (ability.isSubConceptOfNoCheck("SetObjectInGripper")) {
+            cout<< "we are inside"<< endl;
+
+            auto const &object = ability.parameters->getValue<SetObjectInGripperAbility::oProperty>();
+
+            executeSetObjectInGripper(object);
         } else {
             std::cout << "[Execution] Unknown ability name: " << ability.instanceId.s << std::endl;
             return false;
@@ -893,10 +898,10 @@ private:
         AndreiUtils::sleepMSec(1000);
     }
 
-    void executeSetObjectInGripper(SetObjectInGripperParam const &param) {
+    void executeSetObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
         std::cout << "Executing: SetObjectInGripper\n";
         Gripper* gripper = robot.getGripper();
-        std::string const &instanceId = param.o.instanceId.s;
+        std::string const &instanceId = object.instanceId.s;
         std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
         sim.get().set_object_parent(simObjectName, gripper->getGripperName(), true);
         AndreiUtils::sleepMSec(1000);
@@ -913,13 +918,6 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance("MilkCartonLidlInstance1");
 
 
-    std::vector<std::shared_ptr<MotionPrimitiveParam>> motionPrimitives;
-
-    motionPrimitives.emplace_back(std::make_shared<MoveRobotBodyCartesianParam>(someGoalPose));
-    motionPrimitives.emplace_back(std::make_shared<MoveGripperParam>(shouldOpen));
-    motionPrimitives.emplace_back(std::make_shared<SetObjectInGripperParam>(graspableObjInstance));
-    motionPrimitives.emplace_back(std::make_shared<MoveRobotBodyCartesianParam>(someGoalPose2));
-
     Execution exec;
 
     InstanceAccept<EntityWithExecutorConcept> franka("FrankaPanda");
@@ -931,13 +929,28 @@ void testMotionPrimitiveExecution() {
     instanceProperties.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     InstanceAccept<AbilityConcept> moveRobot("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
 
+    ConceptParameters instanceProperties_set;
+    instanceProperties_set.setPropertyValue<Instance<ConceptList<ObjectConcept>>>("o", Instance<ConceptList<ObjectConcept>>{graspableObjInstance});
+    instanceProperties_set.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
+    InstanceAccept<AbilityConcept> setObject("testSetObject",{"SetObjectInGripper"}, instanceProperties_set );
+
+    ConceptParameters instanceProperties_last;
+    instanceProperties_last.setPropertyValue<Location>("goal", Location{someGoalPose2});
+    instanceProperties_last.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
+    InstanceAccept<AbilityConcept> moveRobot2("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
+
+
+
     /*
     for ( auto const &primitive : motionPrimitives) {
         exec.executability(primitive);  // reuse the same Execution
     }
     //*/
     auto res = ExecuteAbility::eval(franka, moveRobot);
-    cout << "ExecuteAbility res = " << res->b << endl;
+    auto res2 = ExecuteAbility::eval(franka, setObject);
+    auto res3 = ExecuteAbility::eval(franka, moveRobot2);
+    //cout << "ExecuteAbility res = " << res->b << endl;
+
 }
 
 int main() {

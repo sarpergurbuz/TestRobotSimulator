@@ -858,11 +858,10 @@ public:
     bool executeAbility(InstanceAccept<AbilityConcept> const &ability) override {
         cout << "Called executeAbility from Execution!" << endl;
         if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian")) {
-            cout << "Entered first if statement!" << endl;
             auto const &goalLocation = ability.parameters->getValue<MoveRobotBodyCartesianAbility::goalProperty>();
             auto const &goalPose= goalLocation.getGlobalPose();
-            // AndreiUtils::Pose goal = samplePose(0.2, false, true);  // placeholder
-            // executeMoveRobotBodyCartesian(MoveRobotBodyCartesianParam(goal));
+            auto const goalPosed = goalPose.q;
+            executeMoveRobotBodyCartesian(goalPosed);
         } else if (ability.instanceId.s == "MoveGripper") {
             // executeMoveGripper(MoveGripperParam(true));  // hardcoded for now
         } else if (ability.instanceId.s == "SetObjectInGripper") {
@@ -882,9 +881,9 @@ private:
     std::map<std::string, std::string> nameConvertor;
     std::map<std::string, Eigen::Vector3d> objectSpecificTranslationAdjustment;
 
-    void executeMoveRobotBodyCartesian(MoveRobotBodyCartesianParam const &param) {
+    void executeMoveRobotBodyCartesian(AndreiUtils::Pose  const &goalPose) {
         std::cout << "Executing: MoveRobotBodyCartesian\n";
-        path.simulationControlToDestination(&robot, fromPoseToDQ(param.goalPose));
+        path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
         AndreiUtils::sleepMSec(1000);
     }
 

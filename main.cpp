@@ -22,6 +22,7 @@
 #include <ConceptLibrary/entities/PouringSurfaceConcept.h>
 #include <ConceptLibrary/instances/utils.h>
 #include <ConceptLibrary/LibraryInit.h>
+#include <ConceptLibrary/skills/GraspSkill.h>
 #include <ConceptLibrary/skills/PourSkill.h>
 #include <ConceptLibrary/utils.h>
 #include <ConceptLibrary/valueDomains/variations/utilsJson.hpp>
@@ -854,9 +855,37 @@ public:
         addAbility("MoveRobotBodyCartesian");
         addAbility("MoveGripper");
         addAbility("SetObjectInGripper");
+        addAbility("SeeThenMoveToObject");
     }
 
-    bool executeAbility(InstanceAccept<AbilityConcept> const &ability) override {
+    // TODO: implement compare, copy, clone, getStringRepresentation(), cloneValueDataTo
+    using ValueDomain::compare;
+
+    Boolean Execution::compare(ValueDomain const *other, InstanceCacheData &memory) const {
+        auto const cast = dynamic_cast<Execution const *>(other);
+        if (cast == nullptr) {
+            return falseBoolean;
+        }
+        return this->operator==(*cast);
+    }
+
+    std::shared_ptr<Concept> Execution::copy() const {
+        return std::make_shared<Execution>(*this);
+    }
+
+    using ValueDomain::clone;
+
+    std::shared_ptr<ValueDomain> GeometricShape::clone(ValueDomainDeserializerParameters &memory) const {
+        return this->cloneValueFunction<GeometricShape>(memory);
+    }
+
+    using ValueDomain::getStringRepresentation;
+
+    std::string Execution::getStringRepresentation(bool spread, int intent, InstanceCacheData &memory) const {
+        return this->surroundRepresentationWithType("[Execution]");
+    }
+
+    bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {
         cout << "Called executeAbility from Execution!" << endl;
         if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian")) {
             auto const &goalLocation = ability.parameters->getValue<MoveRobotBodyCartesianAbility::goalProperty>();
@@ -866,17 +895,27 @@ public:
         } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
             // executeMoveGripper(MoveGripperParam(true));  // hardcoded for now
         } else if (ability.isSubConceptOfNoCheck("SetObjectInGripper")) {
-            cout<< "we are inside"<< endl;
-
             auto const &object = ability.parameters->getValue<SetObjectInGripperAbility::oProperty>();
-
             executeSetObjectInGripper(object);
+        } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
+            std::cout << "[Execution] Unknown ability name: " << ability.instanceId.s << std::endl;
+            return false;
         } else {
             std::cout << "[Execution] Unknown ability name: " << ability.instanceId.s << std::endl;
             return false;
+
         }
 
         return true;
+    }
+
+protected:
+    void Execution::cloneValueDataTo(std::shared_ptr<ValueDomain> &copy, ValueDomainDeserializerParameters &memory) const {
+        auto const localCopy = std::dynamic_pointer_cast<Execution>(copy);
+        if (localCopy == nullptr) {
+            return;
+        }
+        this->ValueDomain::cloneValueDataTo(copy, memory);
     }
 
 private:
@@ -916,7 +955,8 @@ void testMotionPrimitiveExecution() {
     someGoalPose2 = samplePose(0.2, false, true);
     bool shouldOpen = true;
     InstanceAccept<ObjectConcept> graspableObjInstance("MilkCartonLidlInstance1");
-
+    graspableObjInstance.parameters->getValue<GraspableObjectConcept::locationProperty>();
+    // DetermineGraspLocation::eval();
 
     Execution exec;
 
@@ -951,6 +991,22 @@ void testMotionPrimitiveExecution() {
     auto res3 = ExecuteAbility::eval(franka, moveRobot2);
     //cout << "ExecuteAbility res = " << res->b << endl;
 
+}
+
+void callSkillExecuteFunction() {
+    InstanceAccept<SkillConcept> skill("TestGraspSkill", {GraspSkill::getName()}, nlohmann::json{});
+    InstanceAccept<FrankaRobotConcept> franka("FrankaPanda");
+    Execution exec;
+    franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
+    auto graspEntitySetters = SkillConcept::getPropertySetters(GraspSkill::getName());
+    AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skill.parameters, franka, false);
+    // skill.parameters->setPropertyValue<GraspSkill::fromLocationProperty::type>("location", Location{});
+    // TODO: set skill properties: agent, gripper and object...
+
+    EnvironmentData envData;
+    // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
+
+    skill.parameters->callFunction<void, EnvironmentData const &, ConceptParameters &>("execution", envData, *skill.parameters);
 }
 
 int main() {

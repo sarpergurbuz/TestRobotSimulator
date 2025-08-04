@@ -858,7 +858,7 @@ public:
     bool executeAbility(InstanceAccept<AbilityConcept> const &ability) override {
         cout << "Called executeAbility from Execution!" << endl;
         if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian")) {
-            cout << "Entered first if statement !" << endl;
+            cout << "Entered first if statement!" << endl;
             auto const &goalLocation = ability.parameters->getValue<MoveRobotBodyCartesianAbility::goalProperty>();
             auto const &goalPose= goalLocation.getGlobalPose();
             // AndreiUtils::Pose goal = samplePose(0.2, false, true);  // placeholder

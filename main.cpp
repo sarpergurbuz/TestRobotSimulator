@@ -20,6 +20,7 @@
 #include <ConceptLibrary/entities/PourerConcept.h>
 #include <ConceptLibrary/entities/PourerSurfaceConcept.h>
 #include <ConceptLibrary/entities/PouringSurfaceConcept.h>
+#include <ConceptLibrary/functions/EnvironmentDataFunctions.h>
 #include <ConceptLibrary/instances/utils.h>
 #include <ConceptLibrary/LibraryInit.h>
 #include <ConceptLibrary/skills/GraspSkill.h>
@@ -855,33 +856,58 @@ public:
         addAbility("MoveRobotBodyCartesian");
         addAbility("MoveGripper");
         addAbility("SetObjectInGripper");
-        addAbility("SeeThenMoveToObject");
+        //addAbility("SeeThenMoveToObject");
     }
 
     // TODO: implement compare, copy, clone, getStringRepresentation(), cloneValueDataTo
+
     using ValueDomain::compare;
 
-    Boolean Execution::compare(ValueDomain const *other, InstanceCacheData &memory) const {
+    Boolean compare(ValueDomain const *other, InstanceCacheData &memory) const override {
         auto const cast = dynamic_cast<Execution const *>(other);
         if (cast == nullptr) {
             return falseBoolean;
         }
-        return this->operator==(*cast);
+
+        if (&(this->robot) != &(cast->robot)) {
+            return falseBoolean;
+        }
+
+        if (&(this->path) != &(cast->path)) {
+            return falseBoolean;
+        }
+
+
+        if (this->nameConvertor != cast->nameConvertor) {
+            return falseBoolean;
+        }
+
+
+        if (this->objectSpecificTranslationAdjustment != cast->objectSpecificTranslationAdjustment) {
+            return falseBoolean;
+        }
+        if (&(this->sim) != &(cast->sim)) {
+            return falseBoolean;
+        }
+
+
+        // If all checks passed
+        return trueBoolean;
     }
 
-    std::shared_ptr<Concept> Execution::copy() const {
+    std::shared_ptr<Concept> copy() const override {
         return std::make_shared<Execution>(*this);
     }
 
     using ValueDomain::clone;
 
-    std::shared_ptr<ValueDomain> GeometricShape::clone(ValueDomainDeserializerParameters &memory) const {
+    std::shared_ptr<ValueDomain> clone(ValueDomainDeserializerParameters &memory) const override {
         return this->cloneValueFunction<GeometricShape>(memory);
     }
 
     using ValueDomain::getStringRepresentation;
 
-    std::string Execution::getStringRepresentation(bool spread, int intent, InstanceCacheData &memory) const {
+    std::string getStringRepresentation(bool spread, int intent, InstanceCacheData &memory) const override {
         return this->surroundRepresentationWithType("[Execution]");
     }
 
@@ -910,7 +936,7 @@ public:
     }
 
 protected:
-    void Execution::cloneValueDataTo(std::shared_ptr<ValueDomain> &copy, ValueDomainDeserializerParameters &memory) const {
+    void cloneValueDataTo(std::shared_ptr<ValueDomain> &copy, ValueDomainDeserializerParameters &memory) const override {
         auto const localCopy = std::dynamic_pointer_cast<Execution>(copy);
         if (localCopy == nullptr) {
             return;
@@ -959,16 +985,29 @@ void testMotionPrimitiveExecution() {
     // some tests for grasp location
     auto const testloc= graspableObjInstance.parameters->getValue<GraspableObjectConcept::locationProperty>();
     auto const testpose = testloc.getGlobalPose();
+
     // DetermineGraspLocation::eval();
 
     Execution exec;
 
-    InstanceAccept<EntityWithExecutorConcept> franka("FrankaPanda");
+    EnvironmentData envData;
+
+    InstanceAccept<EntityWithExecutorConcept> franka("FrankaPanda");  // before it was this
+    //Instance<ConceptList<AgentConcept>> franka("FrankaPanda");
+
     // franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", Value<Executor>{exec});
-    franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
+    franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);  // before converting it to  agent concept
+    //franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", Value<Executor>{exec});
+
+    AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
+    // before this function, initialize all the entity-instances in the environment with AddObject- and AddAgentToEnvironment(envData, );
+    // in the function, go through all the entities of the environment and if they are contained in simulation, get their pose and update their pose with SetInstancePose
+   // exec.initializeEnvironmentFromSimulation(envData);
+
+
 
     ConceptParameters instanceProperties;
-    instanceProperties.setPropertyValue<Location>("goal", Location{someGoalPose});
+    instanceProperties.setPropertyValue<Location>("goal", Location{testpose});
     instanceProperties.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     InstanceAccept<AbilityConcept> moveRobot("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
 
@@ -978,7 +1017,7 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<AbilityConcept> setObject("testSetObject",{"SetObjectInGripper"}, instanceProperties_set );
 
     ConceptParameters instanceProperties_last;
-    instanceProperties_last.setPropertyValue<Location>("goal", Location{someGoalPose2});
+    instanceProperties_last.setPropertyValue<Location>("goal", Location{someGoalPose});
     instanceProperties_last.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     InstanceAccept<AbilityConcept> moveRobot2("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
 
@@ -989,10 +1028,10 @@ void testMotionPrimitiveExecution() {
         exec.executability(primitive);  // reuse the same Execution
     }
     //*/
-    EnvironmentData envDatatest;
-    auto res = ExecuteAbility::eval(franka, moveRobot,envDatatest);
-    auto res2 = ExecuteAbility::eval(franka, setObject,envDatatest);
-    auto res3 = ExecuteAbility::eval(franka, moveRobot2,envDatatest);
+
+    auto res = ExecuteAbility::eval(franka, moveRobot,envData);
+    auto res2 = ExecuteAbility::eval(franka, setObject,envData);
+    auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
     //cout << "ExecuteAbility res = " << res->b << endl;
 
 }

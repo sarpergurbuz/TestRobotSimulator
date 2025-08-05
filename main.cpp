@@ -955,7 +955,10 @@ void testMotionPrimitiveExecution() {
     someGoalPose2 = samplePose(0.2, false, true);
     bool shouldOpen = true;
     InstanceAccept<ObjectConcept> graspableObjInstance("MilkCartonLidlInstance1");
-    graspableObjInstance.parameters->getValue<GraspableObjectConcept::locationProperty>();
+
+    // some tests for grasp location
+    auto const testloc= graspableObjInstance.parameters->getValue<GraspableObjectConcept::locationProperty>();
+    auto const testpose = testloc.getGlobalPose();
     // DetermineGraspLocation::eval();
 
     Execution exec;
@@ -986,9 +989,10 @@ void testMotionPrimitiveExecution() {
         exec.executability(primitive);  // reuse the same Execution
     }
     //*/
-    auto res = ExecuteAbility::eval(franka, moveRobot);
-    auto res2 = ExecuteAbility::eval(franka, setObject);
-    auto res3 = ExecuteAbility::eval(franka, moveRobot2);
+    EnvironmentData envDatatest;
+    auto res = ExecuteAbility::eval(franka, moveRobot,envDatatest);
+    auto res2 = ExecuteAbility::eval(franka, setObject,envDatatest);
+    auto res3 = ExecuteAbility::eval(franka, moveRobot2,envDatatest);
     //cout << "ExecuteAbility res = " << res->b << endl;
 
 }

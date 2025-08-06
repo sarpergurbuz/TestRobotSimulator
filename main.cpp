@@ -912,8 +912,9 @@ public:
     }
 
 
-    std::vector<std::string> initializeEnvironmentFromSimulation(EnvironmentData const &envData) const {
+    void initializeEnvironmentFromSimulation(EnvironmentData const &envData) const {
         std::vector<std::string> presentObjectsInEnv;
+        auto &simInterface = sim.get();
 
         for (const auto &pair : nameConvertor) {
             const std::string &objectName = pair.first;
@@ -924,14 +925,23 @@ public:
                 continue; // Skip if the object is not in the simulation
             }
 
-            InstanceAccept<ObjectConcept> objectInstance(objectName);
+            //InstanceAccept<ObjectConcept> objectInstance(objectName);
 
-            if (envData.hasEntity(objectInstance.instanceId)) {  // auto const doIhaveMilkCarton= envData.hasEntity(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1").instanceId);
-                presentObjectsInEnv.push_back(objectName);
+            if (!envData.hasEntity(InstanceAccept<ObjectConcept>(objectName).instanceId)) {  // auto const doIhaveMilkCarton= envData.hasEntity(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1").instanceId);
+                continue;
             }
+            // Get pose from simulation
+            AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose(simObjectName));
+            ConceptLibrary::Pose rawPose(poseInSim);
+
+            // Get object instance from env
+            auto objectInstance = envData.getEntity(InstanceAccept<ObjectConcept>(objectName).instanceId);
+
+            // Set the pose into the environment
+            SetInstancePose::eval(objectInstance, rawPose);
         }
 
-        return presentObjectsInEnv;
+
     }
 
 
@@ -1007,9 +1017,7 @@ void testMotionPrimitiveExecution() {
     bool shouldOpen = true;
     InstanceAccept<ObjectConcept> graspableObjInstance("MilkCartonLidlInstance1");
 
-    // some tests for grasp location
-    auto const testloc= graspableObjInstance.parameters->getValue<GraspableObjectConcept::locationProperty>();
-    auto const testpose = testloc.getGlobalPose();
+
 
     // DetermineGraspLocation::eval();
 
@@ -1026,17 +1034,24 @@ void testMotionPrimitiveExecution() {
 
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, graspableObjInstance );
+    exec.initializeEnvironmentFromSimulation(envData); // setting current locations
+
+    // some tests for grasp location
+    auto const testloc= graspableObjInstance.parameters->getValue<GraspableObjectConcept::locationProperty>();
+    auto const testpose = testloc.getGlobalPose();
 
 
 
     // before this function, initialize all the entity-instances in the environment with AddObject- and AddAgentToEnvironment(envData, );
     // in the function, go through all the entities of the environment and if they are contained in simulation, get their pose and update their pose with SetInstancePose
 
+    /*
+
     std::vector<std::string> foundObjects = exec.initializeEnvironmentFromSimulation(envData);
     for (const auto& name : foundObjects) {
         std::cout << "Found in environment: " << name << std::endl;
     }
-
+    */
 
 
 
@@ -1109,3 +1124,4 @@ int main() {
 
     return 0;
 }
+

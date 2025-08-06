@@ -155,7 +155,7 @@ void initializeSimData(map<string, string> &nameConvertor,
                        map<string, Eigen::Vector3d> &objectSpecificTranslationAdjustment) {
     nameConvertor = {
             {"MilkCartonLidlInstance1",   "/MilkCartonLidlInstance1"},
-            {"trash_can",                 "/TrashCan"},
+            //{"trash_can",                 "/TrashCan"},
             {"CerealBoxVitalisInstance1", "/CerealBox"},
             {"BowlGreyIkeaInstance",      "/BowlGreyIkeaInstance"},
             {"BowlWhiteIkeaInstance",     "/BowlWhiteIkeaInstance"},
@@ -911,6 +911,30 @@ public:
         return this->surroundRepresentationWithType("[Execution]");
     }
 
+
+    std::vector<std::string> initializeEnvironmentFromSimulation(EnvironmentData const &envData) const {
+        std::vector<std::string> presentObjectsInEnv;
+
+        for (const auto &pair : nameConvertor) {
+            const std::string &objectName = pair.first;
+            const std::string &simObjectName = pair.second;
+
+            // Check if the object exists in the simulation first
+            if (!sim.doesObjectExistInSimulation(simObjectName)) {
+                continue; // Skip if the object is not in the simulation
+            }
+
+            InstanceAccept<ObjectConcept> objectInstance(objectName);
+
+            if (envData.hasEntity(objectInstance.instanceId)) {  // auto const doIhaveMilkCarton= envData.hasEntity(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1").instanceId);
+                presentObjectsInEnv.push_back(objectName);
+            }
+        }
+
+        return presentObjectsInEnv;
+    }
+
+
     bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {
         cout << "Called executeAbility from Execution!" << endl;
         if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian")) {
@@ -950,6 +974,7 @@ private:
     PathController path;
     std::map<std::string, std::string> nameConvertor;
     std::map<std::string, Eigen::Vector3d> objectSpecificTranslationAdjustment;
+
 
     void executeMoveRobotBodyCartesian(AndreiUtils::Pose  const &goalPose) {
         std::cout << "Executing: MoveRobotBodyCartesian\n";
@@ -1000,9 +1025,19 @@ void testMotionPrimitiveExecution() {
     //franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", Value<Executor>{exec});
 
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
+    AddObjectToEnvironment::eval(envData, graspableObjInstance );
+
+
+
     // before this function, initialize all the entity-instances in the environment with AddObject- and AddAgentToEnvironment(envData, );
     // in the function, go through all the entities of the environment and if they are contained in simulation, get their pose and update their pose with SetInstancePose
-   // exec.initializeEnvironmentFromSimulation(envData);
+
+    std::vector<std::string> foundObjects = exec.initializeEnvironmentFromSimulation(envData);
+    for (const auto& name : foundObjects) {
+        std::cout << "Found in environment: " << name << std::endl;
+    }
+
+
 
 
 

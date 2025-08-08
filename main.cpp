@@ -918,7 +918,7 @@ public:
         std::vector<std::string> presentObjectsInEnv;
         auto &simInterface = sim.get();
 
-        for (const auto &pair : nameConvertor) {
+        for (const auto &pair : nameConvertor) {  // this for loop is for graspable objects
             const std::string &objectName = pair.first;
             const std::string &simObjectName = pair.second;
 
@@ -942,7 +942,21 @@ public:
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
         }
+        auto const franka= envData.getEntity("FrankaPanda");
+        auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
 
+        if (sim.doesObjectExistInSimulation("/Franka/FrankaGripper")& envData.hasEntity(gripper.instanceId )) {
+            // Get pose from simulation
+            AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka/FrankaGripper"));
+            ConceptLibrary::Pose rawPose(poseInSim);
+
+            // Get object instance from env
+            auto objectInstance = envData.getEntity(gripper.instanceId);
+
+            // Set the pose into the environment
+            SetInstancePose::eval(objectInstance, rawPose);
+
+        }
 
     }
 
@@ -1007,8 +1021,19 @@ private:
     void executeSeeThenMoveToObject( ConceptValue const &conceptValue, EnvironmentData &env, ConceptLibrary::Pose const &deltaPose= ConceptLibrary::Pose(), Sequence<ConceptValue> const & ignoreInstances= {}, Boolean const &useCartesian= trueBoolean, Number const &waitTimeSec= Number(1.0)) {
 
         for (auto &instanceInEnv : env.entities){
+            if (instanceInEnv.second.isSubConceptOfNoCheck("Gripper")){
+                cout<<" this is the gripper: "<< instanceInEnv.first.s<< endl;
+                auto const instanceXYZ = instanceInEnv.second.parameters->getValue<GripperConcept::locationProperty>().getGlobalPose().q.getTranslation();
+                cout << "this is the location of the gripper: "<< instanceXYZ<< endl;
+
+
+            }
+
             if (instanceInEnv.second.isSubConceptOfNoCheck(conceptValue.s)){
                 cout<<" this is a suitable object of SeeThenMove:"<< instanceInEnv.first.s<< endl;
+                auto const instanceLocation = eigenToString(instanceInEnv.second.parameters->getValue<GraspableObjectConcept::locationProperty>().getGlobalPose().q.getTranslation());
+                cout<< "this is the location of the suitable object: "<< instanceLocation;
+
             }
         }
 
@@ -1035,6 +1060,7 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance_milkcarton("MilkCartonLidlInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup1("PlasticCupInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup2("PlasticCupInstance2");
+    InstanceAccept<ObjectConcept> groundInstace("GroundInstance");
 
 
 
@@ -1048,6 +1074,7 @@ void testMotionPrimitiveExecution() {
     EnvironmentData envData;
 
     InstanceAccept<EntityWithExecutorConcept> franka("FrankaPanda");  // before it was this
+
     //Instance<ConceptList<AgentConcept>> franka("FrankaPanda");
 
     // franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", Value<Executor>{exec});
@@ -1060,12 +1087,16 @@ void testMotionPrimitiveExecution() {
     AddObjectToEnvironment::eval(envData, graspableObjInstance_milkcarton );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup1 );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
+    AddObjectToEnvironment::eval(envData,groundInstace);
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
 
     // some tests for grasp location
     auto const testloc= graspableObjInstance_plasticcup2.parameters->getValue<GraspableObjectConcept::locationProperty>();
     auto const testpose = testloc.getGlobalPose();
     auto const testdqzero= AndreiUtils::DualQuaternion<double>::createFromCoefficients(1,0,0,0,0.0, 0.0, 0.0, 0.0);
+
+    auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
+    auto const &gripperLocation = gripper.parameters->getValue<PhysicalEntityConcept::locationProperty>();
 
     ConceptLibrary::Pose zeroPose(testdqzero);
     auto const entitiesInsideEnv= envData.entities;
@@ -1118,9 +1149,9 @@ void testMotionPrimitiveExecution() {
     }
     //*/
 
-    auto res = ExecuteAbility::eval(franka, moveRobot,envData);
-    auto res2 = ExecuteAbility::eval(franka, setObject,envData);
-    auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
+    //auto res = ExecuteAbility::eval(franka, moveRobot,envData);
+    //auto res2 = ExecuteAbility::eval(franka, setObject,envData);
+    //auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
     auto res4 =ExecuteAbility::eval(franka, seeThenMove,envData);
     //cout << "ExecuteAbility res = " << res->b << endl;
 

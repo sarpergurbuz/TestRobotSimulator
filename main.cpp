@@ -36,6 +36,7 @@
 #include <RobotModelling/SimulationObjectRelativeGrasp.h>
 #include <RobotModelling/utils.h>
 #include <ConceptLibrary/valueDomains/Pose.h>
+#include <limits>
 
 using namespace AndreiUtils;
 using namespace ConceptLibrary;
@@ -1020,24 +1021,79 @@ private:
     }
     void executeSeeThenMoveToObject( ConceptValue const &conceptValue, EnvironmentData &env, ConceptLibrary::Pose const &deltaPose= ConceptLibrary::Pose(), Sequence<ConceptValue> const & ignoreInstances= {}, Boolean const &useCartesian= trueBoolean, Number const &waitTimeSec= Number(1.0)) {
 
+        // 1) Find gripper position (first pass)
+        Matrix<double,3,1> gripperXYZ;  // or auto for whatever T you use
+        bool gripperFound = false;
+
+        for (auto &instanceInEnv : env.entities) {
+            if (instanceInEnv.second.isSubConceptOfNoCheck("Gripper")) {
+                gripperXYZ =
+                        instanceInEnv.second.parameters
+                                ->getValue<GripperConcept::locationProperty>()
+                                .getGlobalPose().q.getTranslation();
+                gripperFound = true;
+                break; // stop at the first gripper you find
+            }
+        }
+
+        if (!gripperFound) {
+            std::cerr << "[SeeThenMove] No gripper found in env.entities\n";
+            // handle early return or fallback here
+        } else {
+            // 2) Among entities satisfying conceptValue.s, pick the closest (second pass)
+            double bestDist2 = std::numeric_limits<double>::infinity();
+            auto closestIt   = env.entities.end();
+
+            for (auto it = env.entities.begin(); it != env.entities.end(); ++it) {
+                auto &instanceInEnv = *it;
+
+                if (instanceInEnv.second.isSubConceptOfNoCheck(conceptValue.s)) {
+                    const auto instanceXYZ =
+                            instanceInEnv.second.parameters
+                                    ->getValue<GraspableObjectConcept::locationProperty>()
+                                    .getGlobalPose().q.getTranslation();
+
+                    const double d2 = (instanceXYZ - gripperXYZ).squaredNorm(); // faster than norm()
+                    if (d2 < bestDist2) {
+                        bestDist2 = d2;
+                        closestIt = it;
+                    }
+                }
+            }
+
+            if (closestIt != env.entities.end()) {
+                std::cout << "Closest suitable object: " << closestIt->first.s
+                          << " | distance: " << std::sqrt(bestDist2) << "\n";
+
+                // Use closestIt->second ... as needed
+                // e.g., auto &closest = closestIt->second;
+            } else {
+                std::cout << "No suitable objects found for concept: " << conceptValue.s << "\n";
+            }
+        }
+
+
+
+        /*
         for (auto &instanceInEnv : env.entities){
+
             if (instanceInEnv.second.isSubConceptOfNoCheck("Gripper")){
-                cout<<" this is the gripper: "<< instanceInEnv.first.s<< endl;
-                auto const instanceXYZ = instanceInEnv.second.parameters->getValue<GripperConcept::locationProperty>().getGlobalPose().q.getTranslation();
-                cout << "this is the location of the gripper: "<< instanceXYZ<< endl;
+                //cout<<" this is the gripper: "<< instanceInEnv.first.s<< endl;
+                auto const gripperXYZ = instanceInEnv.second.parameters->getValue<GripperConcept::locationProperty>().getGlobalPose().q.getTranslation();
+                //cout << "this is the location of the gripper: "<< gripperXYZ<< endl;
 
 
             }
 
             if (instanceInEnv.second.isSubConceptOfNoCheck(conceptValue.s)){
-                cout<<" this is a suitable object of SeeThenMove:"<< instanceInEnv.first.s<< endl;
-                auto const instanceLocation = eigenToString(instanceInEnv.second.parameters->getValue<GraspableObjectConcept::locationProperty>().getGlobalPose().q.getTranslation());
-                cout<< "this is the location of the suitable object: "<< instanceLocation;
+                //cout<<" this is a suitable object of SeeThenMove:"<< instanceInEnv.first.s<< endl;
+                auto const instanceXYZ = eigenToString(instanceInEnv.second.parameters->getValue<GraspableObjectConcept::locationProperty>().getGlobalPose().q.getTranslation());
+                //cout<< "this is the location of the suitable object: "<< instanceXYZ;
 
             }
         }
-
-        AndreiUtils::sleepMSec(1000);
+        */
+        AndreiUtils::sleepMSec(waitTimeSec.n*1000);
     }
 
     void executeSetObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
@@ -1060,7 +1116,7 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance_milkcarton("MilkCartonLidlInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup1("PlasticCupInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup2("PlasticCupInstance2");
-    InstanceAccept<ObjectConcept> groundInstace("GroundInstance");
+    InstanceAccept<EntityConcept> groundInstance("GroundInstance");
 
 
 
@@ -1087,7 +1143,7 @@ void testMotionPrimitiveExecution() {
     AddObjectToEnvironment::eval(envData, graspableObjInstance_milkcarton );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup1 );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
-    AddObjectToEnvironment::eval(envData,groundInstace);
+    AddObjectToEnvironment::eval(envData,InstanceAccept<ObjectConcept>{groundInstance});
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
 
     // some tests for grasp location

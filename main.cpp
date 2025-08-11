@@ -37,6 +37,7 @@
 #include <RobotModelling/utils.h>
 #include <ConceptLibrary/valueDomains/Pose.h>
 #include <limits>
+#include <unordered_set>
 
 using namespace AndreiUtils;
 using namespace ConceptLibrary;
@@ -979,11 +980,11 @@ public:
         } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
             auto const &conceptVal = ability.parameters->getValue<SeeThenMoveToObjectAbility::objectConceptToGoToProperty>();
             //auto const &deltaPose = ability.parameters->getValue<SeeThenMoveToObjectAbility::deltaPoseToObjectProperty>();
-            //auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesProperty>();
+            auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesProperty>();
             //auto const &useCartesian = ability.parameters->getValue<SeeThenMoveToObjectAbility::useCartesianProperty>();
             //auto const &waitTimeSec = ability.parameters->getValue<SeeThenMoveToObjectAbility::waitTimeSecProperty>();
 
-            executeSeeThenMoveToObject(conceptVal,env);
+            executeSeeThenMoveToObject(conceptVal,env, ConceptLibrary::Pose{} ,ignoreInstances);
         } else {
             std::cout << "[Execution] Unknown ability name: " << ability.instanceId.s << std::endl;
             return false;
@@ -1053,9 +1054,19 @@ private:
             // 2) Among entities satisfying conceptValue.s, pick the closest (second pass)
             double bestDist2 = std::numeric_limits<double>::infinity();
             auto closestIt   = env.entities.end();
-
             for (auto it = env.entities.begin(); it != env.entities.end(); ++it) {
                 auto &instanceInEnv = *it;
+
+                // Skip if in ignoreInstances (either name match or subconcept match)
+                bool skip = false;
+                for (const auto& cv : ignoreInstances) {
+                    if (instanceInEnv.second.isSubConceptOfNoCheck(cv.s)) {
+                        cout<< "Skipping " << instanceInEnv.second.instanceId.s <<" because it belongs to " << cv.s <<" in the IgnoreInstances"<< endl;
+                        skip = true;
+                        break;
+                    }
+                }
+                if (skip) continue;
 
                 if (instanceInEnv.second.isSubConceptOfNoCheck(conceptValue.s)) {
                     const auto instanceXYZ =
@@ -1209,10 +1220,12 @@ void testMotionPrimitiveExecution() {
 
 
     auto const conceptVal = ConceptValue("GraspableObject");
+    Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{ ConceptValue("OpenableObject") });
 
     ConceptParameters instancePropertiesSeeThenMove;
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );
     instancePropertiesSeeThenMove.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
+    instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstances", ignoreThese);
     InstanceAccept<AbilityConcept> seeThenMove("testSeeThenMoveToObject", {"SeeThenMoveToObject"}, instancePropertiesSeeThenMove);
 
 

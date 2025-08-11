@@ -979,12 +979,12 @@ public:
             executeSetObjectInGripper(object);
         } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
             auto const &conceptVal = ability.parameters->getValue<SeeThenMoveToObjectAbility::objectConceptToGoToProperty>();
-            //auto const &deltaPose = ability.parameters->getValue<SeeThenMoveToObjectAbility::deltaPoseToObjectProperty>();
+            auto const &deltaPose = ability.parameters->getValue<SeeThenMoveToObjectAbility::deltaPoseToObjectProperty>();
             auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesProperty>();
             //auto const &useCartesian = ability.parameters->getValue<SeeThenMoveToObjectAbility::useCartesianProperty>();
             //auto const &waitTimeSec = ability.parameters->getValue<SeeThenMoveToObjectAbility::waitTimeSecProperty>();
 
-            executeSeeThenMoveToObject(conceptVal,env, ConceptLibrary::Pose{} ,ignoreInstances);
+            executeSeeThenMoveToObject(conceptVal,env, deltaPose ,ignoreInstances);
         } else {
             std::cout << "[Execution] Unknown ability name: " << ability.instanceId.s << std::endl;
             return false;
@@ -1096,9 +1096,28 @@ private:
                 auto const goalPosedForTheFoundClosestObject = closestIt->second.parameters->getValue<ObjectConcept::locationProperty>().getGlobalPose().q;
                 auto const goalXYZ=goalPosedForTheFoundClosestObject.getTranslation();
                 auto const goalRot= currentEEPose.getRotation();
-                auto const goalPosedWithEERotAndObjXYZ= AndreiUtils::Posed{goalRot,goalXYZ};
+
+
+                // using deltaPose as an interaction volume
+                auto const dp =deltaPose.q.getTranslation();
+                auto const r=dp.norm();
+
+                //direction from currentEEXYZ to goalXYZ
+                auto const direction= goalXYZ- currentEEXYZ;
+                double const directionMagnitude= direction.norm();
+
+                // compute the limitPoint on the line
+
+                Eigen::Vector3d limitXYZ = goalXYZ; // default: go all the way
+                if (directionMagnitude> 1e-9 && r>0.0){
+                    double const step= min(r,directionMagnitude);
+                    limitXYZ=goalXYZ-(step * (direction/directionMagnitude));
+                }
+
+                auto const goalPosedWithEERotAndObjXYZ= AndreiUtils::Posed{goalRot,limitXYZ};
+
                 if(useCartesian) {
-                    cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian"<< endl;
+                    cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian with r= "<< r << endl;
                     executeMoveRobotBodyCartesian(goalPosedWithEERotAndObjXYZ);
 
                 }
@@ -1235,13 +1254,16 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<AbilityConcept> moveRobot2("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
 
 
+
     auto const conceptVal = ConceptValue("GraspableObject");
     Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{ ConceptValue("OpenableObject")});
+    ConceptLibrary::Pose deltaPose(AndreiUtils::Posed{AndreiUtils::qxRotation(M_PI), Eigen::Vector3d{0, 0.2, 0}});
 
     ConceptParameters instancePropertiesSeeThenMove;
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );
     instancePropertiesSeeThenMove.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstances", ignoreThese);
+    instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPose);
     InstanceAccept<AbilityConcept> seeThenMove("testSeeThenMoveToObject", {"SeeThenMoveToObject"}, instancePropertiesSeeThenMove);
 
 

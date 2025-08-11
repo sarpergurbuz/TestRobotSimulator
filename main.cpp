@@ -730,6 +730,8 @@ void testMoveRobot() {
     path.simulationControlToJointValues(&robot, robotInitialJoints, 300);
     cout << "Done moving robot!" << endl;
     AndreiUtils::sleepMSec(2000);  // sleep so that the final result is still visible before the simulation stops
+    path.simulationControlToDestination(&robot, fromPoseToDQ(AndreiUtils::Posed{AndreiUtils::qxRotation(M_PI), Eigen::Vector3d{0, 0.1, 0.05}}));
+    AndreiUtils::sleepMSec(2000);  // sleep so that the final result is still visible before the simulation stops
 }
 
 void testIKsolver() {
@@ -851,7 +853,7 @@ public:
     Execution()
         : Executor("Execution"),  // Name of the domain
           sim(SimulationInterface::getInterface()),
-          robot(Robot::createFromType("PandaRobot", sim, "PandaGripper")),
+          robot(Robot::createFromType("PandaRobotWithGripper", sim, "PandaGripper")),
           path() {
         initializeSimData(nameConvertor, objectSpecificTranslationAdjustment);
         // Register abilities that this class can handle
@@ -1010,7 +1012,15 @@ private:
 
     void executeMoveRobotBodyCartesian(AndreiUtils::Pose  const &goalPose) {
         std::cout << "Executing: MoveRobotBodyCartesian\n";
-        path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
+        // if needed, the 2 lines below can also be used for going to the end effector pose without using PandaRobotWithGripper
+        //auto const gripper= robot.getGripper();
+        //auto const eePose= gripper->endEffectorPoseFromGripperPose(goalPose);
+
+        Eigen::AngleAxisd rot180_X(M_PI, Eigen::Vector3d::UnitX());
+        Eigen::Quaterniond ZinvertQuaternion(rot180_X);
+        auto goalPoseInvertedZ= goalPose.addRotation(ZinvertQuaternion);
+        path.simulationControlToDestination(&robot, fromPoseToDQ(goalPoseInvertedZ));
+
         AndreiUtils::sleepMSec(1000);
     }
 
@@ -1062,11 +1072,21 @@ private:
             }
 
             if (closestIt != env.entities.end()) {
-                std::cout << "Closest suitable object: " << closestIt->first.s
+                std::cout << "Closest suitable ("<< conceptValue.s<<") object for SeeThenMoveToObject: " << closestIt->first.s
                           << " | distance: " << std::sqrt(bestDist2) << "\n";
 
-                // Use closestIt->second ... as needed
-                // e.g., auto &closest = closestIt->second;
+                // Extract the full pose from the iterator
+                auto const goalPosedForTheFoundClosestObject = closestIt->second.parameters->getValue<ObjectConcept::locationProperty>().getGlobalPose().q;
+                if(useCartesian) {
+                    cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian"<< endl;
+                    executeMoveRobotBodyCartesian(goalPosedForTheFoundClosestObject);
+                }
+                else {
+                    cout<<"Going to the closest suitable object by using another method different than Cartesian is not yet implemented!"<< endl;
+                };
+
+
+
             } else {
                 std::cout << "No suitable objects found for concept: " << conceptValue.s << "\n";
             }
@@ -1118,14 +1138,13 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup2("PlasticCupInstance2");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
 
-
-
-
-
-
     //DetermineGraspLocation::eval();
 
     Execution exec;
+
+    //exec.path.simulationControlToDestination(&exec.robot, fromPoseToDQ(AndreiUtils::Posed{AndreiUtils::qxRotation(M_PI), Eigen::Vector3d{0, 0.1, 0.05}}));
+    //AndreiUtils::sleepMSec(10000);
+    //return;
 
     EnvironmentData envData;
 
@@ -1147,8 +1166,8 @@ void testMotionPrimitiveExecution() {
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
 
     // some tests for grasp location
-    auto const testloc= graspableObjInstance_plasticcup2.parameters->getValue<GraspableObjectConcept::locationProperty>();
-    auto const testpose = testloc.getGlobalPose();
+    auto const testpose= graspableObjInstance_plasticcup2.parameters->getValue<GraspableObjectConcept::locationProperty>().getGlobalPose();
+
     auto const testdqzero= AndreiUtils::DualQuaternion<double>::createFromCoefficients(1,0,0,0,0.0, 0.0, 0.0, 0.0);
 
     auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
@@ -1174,7 +1193,7 @@ void testMotionPrimitiveExecution() {
 
 
     ConceptParameters instanceProperties;
-    instanceProperties.setPropertyValue<Location>("goal", Location{testpose});
+    instanceProperties.setPropertyValue<Location>("goal", Location{zeroPose});
     instanceProperties.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     InstanceAccept<AbilityConcept> moveRobot("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
 

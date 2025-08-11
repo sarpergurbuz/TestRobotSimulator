@@ -1020,7 +1020,7 @@ private:
         Eigen::AngleAxisd rot180_X(M_PI, Eigen::Vector3d::UnitX());
         Eigen::Quaterniond ZinvertQuaternion(rot180_X);
         auto goalPoseInvertedZ= goalPose.addRotation(ZinvertQuaternion);
-        path.simulationControlToDestination(&robot, fromPoseToDQ(goalPoseInvertedZ));
+        path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
 
         AndreiUtils::sleepMSec(1000);
     }
@@ -1048,7 +1048,8 @@ private:
                 break; // stop at the first gripper you find
             }
         }
-        auto currentEEXYZ= fromDQToPose(robot.getCurrentRobotEEPose()).getTranslation();
+        auto currentEEPose =  fromDQToPose(robot.getCurrentRobotEEPose());
+        auto currentEEXYZ= currentEEPose.getTranslation();
 
 
 
@@ -1093,9 +1094,12 @@ private:
 
                 // Extract the full pose from the iterator
                 auto const goalPosedForTheFoundClosestObject = closestIt->second.parameters->getValue<ObjectConcept::locationProperty>().getGlobalPose().q;
+                auto const goalXYZ=goalPosedForTheFoundClosestObject.getTranslation();
+                auto const goalRot= currentEEPose.getRotation();
+                auto const goalPosedWithEERotAndObjXYZ= AndreiUtils::Posed{goalRot,goalXYZ};
                 if(useCartesian) {
                     cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian"<< endl;
-                    executeMoveRobotBodyCartesian(goalPosedForTheFoundClosestObject);
+                    executeMoveRobotBodyCartesian(goalPosedWithEERotAndObjXYZ);
 
                 }
                 else {
@@ -1132,7 +1136,9 @@ private:
         */
 
 
-        AndreiUtils::sleepMSec(waitTimeSec.n*1000);
+        AndreiUtils::sleepMSec(waitTimeSec.n*2000);
+        auto lastEEXYZ= fromDQToPose(robot.getCurrentRobotEEPose()).getTranslation();
+        cout << "last end effector pose after going: "<< lastEEXYZ << endl;
     }
 
     void executeSetObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
@@ -1181,7 +1187,7 @@ void testMotionPrimitiveExecution() {
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, graspableObjInstance_milkcarton );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup1 );
-    //AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
+    AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_BowlGrey );
     AddObjectToEnvironment::eval(envData,InstanceAccept<ObjectConcept>{groundInstance});
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
@@ -1230,7 +1236,7 @@ void testMotionPrimitiveExecution() {
 
 
     auto const conceptVal = ConceptValue("GraspableObject");
-    Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{  });
+    Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{ ConceptValue("OpenableObject")});
 
     ConceptParameters instancePropertiesSeeThenMove;
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );

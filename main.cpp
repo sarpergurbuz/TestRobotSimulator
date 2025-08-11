@@ -1042,10 +1042,15 @@ private:
                         instanceInEnv.second.parameters
                                 ->getValue<GripperConcept::locationProperty>()
                                 .getGlobalPose().q.getTranslation();
+
                 gripperFound = true;
+
                 break; // stop at the first gripper you find
             }
         }
+        auto currentEEXYZ= fromDQToPose(robot.getCurrentRobotEEPose()).getTranslation();
+
+
 
         if (!gripperFound) {
             std::cerr << "[SeeThenMove] No gripper found in env.entities\n";
@@ -1074,7 +1079,7 @@ private:
                                     ->getValue<GraspableObjectConcept::locationProperty>()
                                     .getGlobalPose().q.getTranslation();
 
-                    const double d2 = (instanceXYZ - gripperXYZ).squaredNorm(); // faster than norm()
+                    const double d2 = (instanceXYZ - currentEEXYZ).squaredNorm();
                     if (d2 < bestDist2) {
                         bestDist2 = d2;
                         closestIt = it;
@@ -1084,13 +1089,14 @@ private:
 
             if (closestIt != env.entities.end()) {
                 std::cout << "Closest suitable ("<< conceptValue.s<<") object for SeeThenMoveToObject: " << closestIt->first.s
-                          << " | distance: " << std::sqrt(bestDist2) << "\n";
+                          << " | distance to EE: " << std::sqrt(bestDist2) << "\n";
 
                 // Extract the full pose from the iterator
                 auto const goalPosedForTheFoundClosestObject = closestIt->second.parameters->getValue<ObjectConcept::locationProperty>().getGlobalPose().q;
                 if(useCartesian) {
                     cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian"<< endl;
                     executeMoveRobotBodyCartesian(goalPosedForTheFoundClosestObject);
+
                 }
                 else {
                     cout<<"Going to the closest suitable object by using another method different than Cartesian is not yet implemented!"<< endl;
@@ -1124,6 +1130,8 @@ private:
             }
         }
         */
+
+
         AndreiUtils::sleepMSec(waitTimeSec.n*1000);
     }
 
@@ -1147,6 +1155,7 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance_milkcarton("MilkCartonLidlInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup1("PlasticCupInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup2("PlasticCupInstance2");
+    InstanceAccept<ObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
 
     //DetermineGraspLocation::eval();
@@ -1172,7 +1181,8 @@ void testMotionPrimitiveExecution() {
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, graspableObjInstance_milkcarton );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup1 );
-    AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
+    //AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
+    AddObjectToEnvironment::eval(envData, graspableObjInstance_BowlGrey );
     AddObjectToEnvironment::eval(envData,InstanceAccept<ObjectConcept>{groundInstance});
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
 
@@ -1220,7 +1230,7 @@ void testMotionPrimitiveExecution() {
 
 
     auto const conceptVal = ConceptValue("GraspableObject");
-    Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{ ConceptValue("OpenableObject") });
+    Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{  });
 
     ConceptParameters instancePropertiesSeeThenMove;
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );

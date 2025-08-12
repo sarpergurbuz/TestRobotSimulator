@@ -949,7 +949,7 @@ public:
         auto const franka= envData.getEntity("FrankaPanda");
         auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
 
-        if (sim.doesObjectExistInSimulation("/Franka/FrankaGripper")& envData.hasEntity(gripper.instanceId )) {
+        if (sim.doesObjectExistInSimulation("/Franka/FrankaGripper")&& envData.hasEntity(gripper.instanceId )) {
             // Get pose from simulation
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka/FrankaGripper"));
             ConceptLibrary::Pose rawPose(poseInSim);
@@ -984,7 +984,8 @@ public:
             //auto const &useCartesian = ability.parameters->getValue<SeeThenMoveToObjectAbility::useCartesianProperty>();
             //auto const &waitTimeSec = ability.parameters->getValue<SeeThenMoveToObjectAbility::waitTimeSecProperty>();
 
-            executeSeeThenMoveToObject(conceptVal,env, deltaPose ,ignoreInstances);
+            Instance<ConceptList<EntityConcept>> goalObjectInstanceSeeThenMove = executeSeeThenMoveToObject(conceptVal,env, deltaPose ,ignoreInstances);
+            ability.parameters->setPropertyValue<SeeThenMoveToObjectAbility::whichObjectProperty>(goalObjectInstanceSeeThenMove);
         } else {
             std::cout << "[Execution] Unknown ability name: " << ability.instanceId.s << std::endl;
             return false;
@@ -1030,8 +1031,9 @@ private:
         // Insert actual gripper command if needed
         AndreiUtils::sleepMSec(1000);
     }
-    void executeSeeThenMoveToObject( ConceptValue const &conceptValue, EnvironmentData &env, ConceptLibrary::Pose const &deltaPose= ConceptLibrary::Pose(), Sequence<ConceptValue> const & ignoreInstances= {}, Boolean const &useCartesian= trueBoolean, Number const &waitTimeSec= Number(1.0)) {
+    Instance<ConceptList<EntityConcept>> executeSeeThenMoveToObject( ConceptValue const &conceptValue, EnvironmentData &env, ConceptLibrary::Pose const &deltaPose= ConceptLibrary::Pose(), Sequence<ConceptValue> const & ignoreInstances= {}, Boolean const &useCartesian= trueBoolean, Number const &waitTimeSec= Number(1.0)) {
 
+        Instance<ConceptList<EntityConcept>> goalObjectInstance;
         // 1) Find gripper position (first pass)
         Matrix<double,3,1> gripperXYZ;  // or auto for whatever T you use
         bool gripperFound = false;
@@ -1093,6 +1095,7 @@ private:
                           << " | distance to EE: " << std::sqrt(bestDist2) << "\n";
 
                 // Extract the full pose from the iterator
+                goalObjectInstance = closestIt->second;
                 auto const goalPosedForTheFoundClosestObject = closestIt->second.parameters->getValue<ObjectConcept::locationProperty>().getGlobalPose().q;
                 auto const goalXYZ=goalPosedForTheFoundClosestObject.getTranslation();
                 auto const goalRot= currentEEPose.getRotation();
@@ -1158,6 +1161,7 @@ private:
         AndreiUtils::sleepMSec(waitTimeSec.n*2000);
         auto lastEEXYZ= fromDQToPose(robot.getCurrentRobotEEPose()).getTranslation();
         cout << "last end effector pose after going: "<< lastEEXYZ << endl;
+        return goalObjectInstance;
     }
 
     void executeSetObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
@@ -1183,7 +1187,7 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
 
-    //DetermineGraspLocation::eval();
+
 
     Execution exec;
 
@@ -1203,6 +1207,8 @@ void testMotionPrimitiveExecution() {
 
     // before this function, initialize all the entity-instances in the environment with AddObject- and AddAgentToEnvironment(envData, );
 
+
+
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, graspableObjInstance_milkcarton );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup1 );
@@ -1221,6 +1227,17 @@ void testMotionPrimitiveExecution() {
 
     ConceptLibrary::Pose zeroPose(testdqzero);
     auto const entitiesInsideEnv= envData.entities;
+
+
+    auto const agent = InstanceAccept<AgentConcept>{franka};
+
+
+    Instance<ConceptList<GraspableObjectConcept>> objInstance("PlasticCupInstance2");
+   // auto const graspLocation= DetermineGraspLocation::eval(agent, gripper, objInstance );
+    //auto const graspXYZ= graspLocation.get().getGlobalPose().q.getTranslation();
+
+   // cout<< "grasp Location for the Plastic cup İnstance is: "<< graspXYZ<< endl;
+
 
 
 
@@ -1255,7 +1272,7 @@ void testMotionPrimitiveExecution() {
 
 
 
-    auto const conceptVal = ConceptValue("GraspableObject");
+    auto const conceptVal = ConceptValue("BowlGreyIkeaInstance");  // Or try directly the instance name :  BowlGreyIkeaInstance  Or try directly the ConceptValue name : "GraspableObject
     Sequence<ConceptValue> ignoreThese(std::vector<ConceptValue>{ ConceptValue("OpenableObject")});
     ConceptLibrary::Pose deltaPose(AndreiUtils::Posed{AndreiUtils::qxRotation(M_PI), Eigen::Vector3d{0, 0.2, 0}});
 

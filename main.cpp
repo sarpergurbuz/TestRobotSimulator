@@ -979,10 +979,12 @@ public:
 
     }
 
-    ConceptLibrary::Pose computeDeltaPoseForPreGrasp (ConceptLibrary::Pose const graspPose, Instance<GraspableObjectConcept> objectInstance){
+    ConceptLibrary::Pose computeDeltaPoseForPreGrasp (ConceptLibrary::Pose const graspPose, InstanceAccept<GraspableObjectConcept> const objectInstance){
 
-        auto const deltaPoseGlobal = graspPose.q.addTranslation(Eigen::Vector3d(0.0, 0.0, -0.10));
-        auto const objectPose = objectInstance.parameters->getValue<PhysicalEntityConcept::locationProperty>().getGlobalPose().q;
+        auto const deltaPoseGlobal = graspPose.q.addTranslation(Eigen::Vector3d(0.0, 0.0, 0.10));
+        cout<< "translated grasp point is: "<< deltaPoseGlobal.getTranslation()<<endl;
+        auto const objectLocation = objectInstance.parameters->getValue<PhysicalEntityConcept::locationProperty>();
+        auto const objectPose= objectLocation.getGlobalPose().q;
         auto const deltaPoseToObject = objectPose.dualQuaternionInverse()*deltaPoseGlobal;
 
         return deltaPoseToObject;
@@ -1121,31 +1123,13 @@ private:
                 // Extract the full pose from the iterator
                 goalObjectInstance = closestIt->second;
                 auto const goalPosedForTheFoundClosestObject = closestIt->second.parameters->getValue<ObjectConcept::locationProperty>().getGlobalPose().q;
-                auto const goalXYZ=goalPosedForTheFoundClosestObject.getTranslation();
-                auto const goalRot= currentEEPose.getRotation();
 
-
-                // using deltaPose as an interaction volume
-                auto const dp =deltaPose.q.getTranslation();
-                auto const r=dp.norm();
-
-                //direction from currentEEXYZ to goalXYZ
-                auto const direction= goalXYZ- currentEEXYZ;
-                double const directionMagnitude= direction.norm();
-
-                // compute the limitPoint on the line
-
-                Eigen::Vector3d limitXYZ = goalXYZ; // default: go all the way
-                if (directionMagnitude> 1e-9 && r>0.0){
-                    double const step= min(r,directionMagnitude);
-                    limitXYZ=goalXYZ-(step * (direction/directionMagnitude));
-                }
-
-                auto const goalPosedWithEERotAndObjXYZ= AndreiUtils::Posed{goalRot,limitXYZ};
+                //Computing the goal Pose by adding the deltaPose to Object's Pose
+                auto const goalPosedWithDeltaPoseToObjectAdded= goalPosedForTheFoundClosestObject * deltaPose.q;
 
                 if(useCartesian) {
-                    cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian with r= "<< r << endl;
-                    executeMoveRobotBodyCartesian(goalPosedWithEERotAndObjXYZ);
+                    cout<<"Going to the closest suitable object "<<closestIt->first.s<<" by using Cartesian" << endl;
+                    executeMoveRobotBodyCartesian(goalPosedWithDeltaPoseToObjectAdded);
 
                 }
                 else {
@@ -1266,6 +1250,7 @@ void testMotionPrimitiveExecution() {
     }
     cout << "Determined location: " << graspLocation.getStringRepresentation() << endl;
     auto const graspPosetest= graspLocation.get().getGlobalPose();
+    auto const deltaPoseToObject = exec.computeDeltaPoseForPreGrasp(graspPosetest,graspableObjInstance_BowlGrey);
     auto const graspXYZ= graspLocation.get().getGlobalPose().q.getTranslation();
     auto const graspRotAngles= graspLocation.get().getGlobalPose().q.getRotation();
 
@@ -1320,7 +1305,7 @@ void testMotionPrimitiveExecution() {
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );
     instancePropertiesSeeThenMove.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstancesOfConcepts", ignoreThese);
-    instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPose);
+    instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPoseToObject);
     InstanceAccept<AbilityConcept> seeThenMove("testSeeThenMoveToObject", {"SeeThenMoveToObject"}, instancePropertiesSeeThenMove);
 
 

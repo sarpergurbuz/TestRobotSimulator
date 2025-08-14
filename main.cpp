@@ -951,6 +951,7 @@ public:
 
         if (sim.doesObjectExistInSimulation("/Franka/FrankaGripper")&& envData.hasEntity(gripper.instanceId )) {
             // Get pose from simulation
+            cout<< "-> Gripper both exist in simulation and envData. Initializing gripper."<< endl;
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka/FrankaGripper"));
             ConceptLibrary::Pose rawPose(poseInSim);
 
@@ -961,7 +962,30 @@ public:
             SetInstancePose::eval(objectInstance, rawPose);
 
         }
+        // Checking whether the robot exists in both the sim and env. TODO: add this to loop as well.
+        if (sim.doesObjectExistInSimulation("/Franka")&& envData.hasEntity(franka.instanceId )) {
+            // Get pose from simulation
+            cout<< "-> Franka both exist in simulation and envData. Initializing Franka."<< endl;
+            AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka"));
+            ConceptLibrary::Pose rawPose(poseInSim);
 
+            // Get object instance from env
+            auto objectInstance = envData.getEntity(franka.instanceId);
+
+            // Set the pose into the environment
+            SetInstancePose::eval(objectInstance, rawPose);
+
+        }
+
+    }
+
+    ConceptLibrary::Pose computeDeltaPoseForPreGrasp (ConceptLibrary::Pose const graspPose, Instance<GraspableObjectConcept> objectInstance){
+
+        auto const deltaPoseGlobal = graspPose.q.addTranslation(Eigen::Vector3d(0.0, 0.0, -0.10));
+        auto const objectPose = objectInstance.parameters->getValue<PhysicalEntityConcept::locationProperty>().getGlobalPose().q;
+        auto const deltaPoseToObject = objectPose.dualQuaternionInverse()*deltaPoseGlobal;
+
+        return deltaPoseToObject;
     }
 
 
@@ -980,7 +1004,7 @@ public:
         } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
             auto const &conceptVal = ability.parameters->getValue<SeeThenMoveToObjectAbility::objectConceptToGoToProperty>();
             auto const &deltaPose = ability.parameters->getValue<SeeThenMoveToObjectAbility::deltaPoseToObjectProperty>();
-            auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesProperty>();
+            auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesOfConceptsProperty>();
             //auto const &useCartesian = ability.parameters->getValue<SeeThenMoveToObjectAbility::useCartesianProperty>();
             //auto const &waitTimeSec = ability.parameters->getValue<SeeThenMoveToObjectAbility::waitTimeSecProperty>();
 
@@ -1184,7 +1208,7 @@ void testMotionPrimitiveExecution() {
     InstanceAccept<ObjectConcept> graspableObjInstance_milkcarton("MilkCartonLidlInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup1("PlasticCupInstance1");
     InstanceAccept<ObjectConcept> graspableObjInstance_plasticcup2("PlasticCupInstance2");
-    InstanceAccept<ObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
 
 
@@ -1213,7 +1237,7 @@ void testMotionPrimitiveExecution() {
     AddObjectToEnvironment::eval(envData, graspableObjInstance_milkcarton );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup1 );
     AddObjectToEnvironment::eval(envData, graspableObjInstance_plasticcup2 );
-    AddObjectToEnvironment::eval(envData, graspableObjInstance_BowlGrey );
+    AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_BowlGrey} );
     AddObjectToEnvironment::eval(envData,InstanceAccept<ObjectConcept>{groundInstance});
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
 
@@ -1231,12 +1255,28 @@ void testMotionPrimitiveExecution() {
 
     auto const agent = InstanceAccept<AgentConcept>{franka};
 
+    auto const &bowlLocation = graspableObjInstance_BowlGrey.parameters->getValue<PhysicalEntityConcept::locationProperty>();
+    cout << bowlLocation.getGlobalPose().q.toString(true) << endl;
+    cout << bowlLocation.getStringRepresentation(true) << endl;
 
-    Instance<ConceptList<GraspableObjectConcept>> objInstance("PlasticCupInstance2");
-   // auto const graspLocation= DetermineGraspLocation::eval(agent, gripper, objInstance );
-    //auto const graspXYZ= graspLocation.get().getGlobalPose().q.getTranslation();
+    auto const graspLocation= DetermineGraspLocation::eval(agent, gripper, graspableObjInstance_BowlGrey );
+    if (graspLocation->isEmpty()) {
+        cout << "No grasp location found!" << endl;
+        return;
+    }
+    cout << "Determined location: " << graspLocation.getStringRepresentation() << endl;
+    auto const graspPosetest= graspLocation.get().getGlobalPose();
+    auto const graspXYZ= graspLocation.get().getGlobalPose().q.getTranslation();
+    auto const graspRotAngles= graspLocation.get().getGlobalPose().q.getRotation();
 
-   // cout<< "grasp Location for the Plastic cup İnstance is: "<< graspXYZ<< endl;
+    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {graspRotAngles, Eigen::Vector3d{0.2, 0.10, 0.3}});
+
+
+    cout<< "grasp Location for the Bowl cup Instance is: "<< graspXYZ<< endl;
+    cout<< "grasp Rotation Quaternion for the Bowl cup Instance is: "<< graspRotAngles<< endl;
+
+
+
 
 
 
@@ -1256,19 +1296,19 @@ void testMotionPrimitiveExecution() {
 
 
     ConceptParameters instanceProperties;
-    instanceProperties.setPropertyValue<Location>("goal", Location{zeroPose});
+    instanceProperties.setPropertyValue<Location>("goal", Location{graspPosetest});
     instanceProperties.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
-    InstanceAccept<AbilityConcept> moveRobot("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
+    InstanceAccept<AbilityConcept> moveRobot("testMoveRobotCartesian1", {"MoveRobotBodyCartesian"}, instanceProperties);
 
     ConceptParameters instanceProperties_set;
-    instanceProperties_set.setPropertyValue<Instance<ConceptList<ObjectConcept>>>("o", Instance<ConceptList<ObjectConcept>>{graspableObjInstance_plasticcup2});
+    instanceProperties_set.setPropertyValue<Instance<ConceptList<ObjectConcept>>>("o", Instance<ConceptList<ObjectConcept>>{graspableObjInstance_BowlGrey});
     instanceProperties_set.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     InstanceAccept<AbilityConcept> setObject("testSetObject",{"SetObjectInGripper"}, instanceProperties_set );
 
     ConceptParameters instanceProperties_last;
-    instanceProperties_last.setPropertyValue<Location>("goal", Location{someGoalPose});
+    instanceProperties_last.setPropertyValue<Location>("goal", Location{goalForBowl});
     instanceProperties_last.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
-    InstanceAccept<AbilityConcept> moveRobot2("testMoveRobotCartesian", {"MoveRobotBodyCartesian"}, instanceProperties);
+    InstanceAccept<AbilityConcept> moveRobot2("testMoveRobotCartesian2", {"MoveRobotBodyCartesian"}, instanceProperties_last);
 
 
 
@@ -1279,7 +1319,7 @@ void testMotionPrimitiveExecution() {
     ConceptParameters instancePropertiesSeeThenMove;
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );
     instancePropertiesSeeThenMove.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
-    instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstances", ignoreThese);
+    instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstancesOfConcepts", ignoreThese);
     instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPose);
     InstanceAccept<AbilityConcept> seeThenMove("testSeeThenMoveToObject", {"SeeThenMoveToObject"}, instancePropertiesSeeThenMove);
 
@@ -1291,11 +1331,11 @@ void testMotionPrimitiveExecution() {
         exec.executability(primitive);  // reuse the same Execution
     }
     //*/
-
-    //auto res = ExecuteAbility::eval(franka, moveRobot,envData);
-    //auto res2 = ExecuteAbility::eval(franka, setObject,envData);
-    //auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
     auto res4 =ExecuteAbility::eval(franka, seeThenMove,envData);
+    auto res = ExecuteAbility::eval(franka, moveRobot,envData);
+    auto res2 = ExecuteAbility::eval(franka, setObject,envData);
+    auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
+
     //cout << "ExecuteAbility res = " << res->b << endl;
 
 }

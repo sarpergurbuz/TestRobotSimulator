@@ -1336,14 +1336,24 @@ void callSkillExecuteFunction() {
     InstanceAccept<SkillConcept> skill("TestGraspSkill", {GraspSkill::getName()}, nlohmann::json{});
     InstanceAccept<FrankaRobotConcept> franka("FrankaPanda");
     Execution exec;
+
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    auto graspEntitySetters = SkillConcept::getPropertySetters(GraspSkill::getName());
-    AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skill.parameters, franka, false);
-    // skill.parameters->setPropertyValue<GraspSkill::fromLocationProperty::type>("location", Location{});
-    // TODO: set skill properties: agent, gripper and object...
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
+    auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
+
+    //skill.parameters->setPropertyValue<GraspSkill::fromLocationProperty::type>("location", Location{});
 
     EnvironmentData envData;
     // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
+    AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
+    AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_BowlGrey} );
+    AddObjectToEnvironment::eval(envData,InstanceAccept<ObjectConcept>{gripper});
+    exec.initializeEnvironmentFromSimulation(envData); // setting current locations
+    // TODO: set skill properties: agent, gripper and object...
+    auto graspEntitySetters = SkillConcept::getPropertySetters(GraspSkill::getName());
+    AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skill.parameters, franka, false);
+    AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skill.parameters, graspableObjInstance_BowlGrey, false);
+    AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skill.parameters, gripper, false);
 
     skill.parameters->callFunction<void, EnvironmentData const &, ConceptParameters &>("execution", envData, *skill.parameters);
 }

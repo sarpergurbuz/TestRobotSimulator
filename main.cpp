@@ -14,6 +14,7 @@
 #include <AndreiUtils/utilsPose.hpp>
 #include <AndreiUtils/utilsThread.h>
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianAbility.h>
+#include <ConceptLibrary/abilities/MoveGripperAbility.h>
 #include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
 #include <ConceptLibrary/abilities/SeeThenMoveToObjectAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
@@ -852,7 +853,7 @@ private:
 class Execution : public ConceptLibrary::Executor {
 public:
     Execution()
-        : Executor("Execution"),  // Name of the domain
+        : Executor(),
           sim(SimulationInterface::getInterface()),
           robot(Robot::createFromType("PandaRobotWithGripper", sim, "PandaGripper")),
           path() {
@@ -999,7 +1000,8 @@ public:
             auto const goalPosed = goalPose.q;
             executeMoveRobotBodyCartesian(goalPosed);
         } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
-            // executeMoveGripper(MoveGripperParam(true));  // hardcoded for now
+            auto const gripperStatusOpen= ability.parameters->getValue<MoveGripperAbility::openGripperProperty>();
+            executeMoveGripper(gripperStatusOpen);
         } else if (ability.isSubConceptOfNoCheck("SetObjectInGripper")) {
             auto const &object = ability.parameters->getValue<SetObjectInGripperAbility::oProperty>();
             executeSetObjectInGripper(object);
@@ -1052,9 +1054,14 @@ private:
         AndreiUtils::sleepMSec(1000);
     }
 
-    void executeMoveGripper(MoveGripperParam const &param) {
-        std::cout << "Executing: MoveGripper (open: " << param.openGripper << ")\n";
-        // Insert actual gripper command if needed
+    void executeMoveGripper(Boolean const gripperStatusOpen) {
+        if (gripperStatusOpen.b) {
+            cout<< "Opening gripper" << endl;
+        }
+        else {
+            cout<< "Closing gripper" << endl;
+        }
+
         AndreiUtils::sleepMSec(1000);
     }
     Instance<ConceptList<EntityConcept>> executeSeeThenMoveToObject( ConceptValue const &conceptValue, EnvironmentData &env, ConceptLibrary::Pose const &deltaPose= ConceptLibrary::Pose(), Sequence<ConceptValue> const & ignoreInstances= {}, Boolean const &useCartesian= trueBoolean, Number const &waitTimeSec= Number(1.0)) {

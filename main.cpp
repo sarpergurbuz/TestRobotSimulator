@@ -16,6 +16,7 @@
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianAbility.h>
 #include <ConceptLibrary/abilities/MoveGripperAbility.h>
 #include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
+#include <ConceptLibrary/abilities/ClearObjectInGripperAbility.h>
 #include <ConceptLibrary/abilities/SeeThenMoveToObjectAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
 #include <ConceptLibrary/entities/OpenableObjectConcept.h>
@@ -863,6 +864,7 @@ public:
         addAbility("MoveGripper");
         addAbility("SetObjectInGripper");
         addAbility("SeeThenMoveToObject");
+        addAbility("ClearObjectInGripper");
     }
 
     // TODO: implement compare, copy, clone, getStringRepresentation(), cloneValueDataTo
@@ -1005,6 +1007,9 @@ public:
         } else if (ability.isSubConceptOfNoCheck("SetObjectInGripper")) {
             auto const &object = ability.parameters->getValue<SetObjectInGripperAbility::oProperty>();
             executeSetObjectInGripper(object);
+        } else if (ability.isSubConceptOfNoCheck("ClearObjectInGripper")) {
+            auto const &object = ability.parameters->getValue<ClearObjectInGripperAbility::oProperty>();
+            executeClearObjectInGripper(object);
         } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
 
             if (!ability.parameters->hasKnownProperty("ignoreInstancesOfConcepts")) {
@@ -1190,6 +1195,13 @@ private:
         std::string const &instanceId = object.instanceId.s;
         std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
         sim.get().set_object_parent(simObjectName, gripper->getGripperName(), true);
+        AndreiUtils::sleepMSec(1000);
+    }
+    void executeClearObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
+        std::cout << "Executing: ClearObjectInGripper\n";
+        std::string const &instanceId = object.instanceId.s;
+        std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
+        removeObjectFromGripper(sim.get(), simObjectName);
         AndreiUtils::sleepMSec(1000);
     }
 };

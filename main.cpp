@@ -1006,9 +1006,14 @@ public:
             auto const &object = ability.parameters->getValue<SetObjectInGripperAbility::oProperty>();
             executeSetObjectInGripper(object);
         } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
+
+            if (!ability.parameters->hasKnownProperty("ignoreInstancesOfConcepts")) {
+                ability.parameters->setPropertyValue<Sequence<ConceptValue>>("ignoreInstancesOfConcepts", Sequence<ConceptValue>{});
+            }
             auto const &conceptVal = ability.parameters->getValue<SeeThenMoveToObjectAbility::objectConceptToGoToProperty>();
             auto const &deltaPose = ability.parameters->getValue<SeeThenMoveToObjectAbility::deltaPoseToObjectProperty>();
             auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesOfConceptsProperty>();
+
             //auto const &useCartesian = ability.parameters->getValue<SeeThenMoveToObjectAbility::useCartesianProperty>();
             //auto const &waitTimeSec = ability.parameters->getValue<SeeThenMoveToObjectAbility::waitTimeSecProperty>();
 
@@ -1311,7 +1316,7 @@ void testMotionPrimitiveExecution() {
     ConceptParameters instancePropertiesSeeThenMove;
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );
     instancePropertiesSeeThenMove.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
-    instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstancesOfConcepts", ignoreThese);
+    //instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstancesOfConcepts", ignoreThese);
     instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPoseToObject);
     InstanceAccept<AbilityConcept> seeThenMove("testSeeThenMoveToObject", {"SeeThenMoveToObject"}, instancePropertiesSeeThenMove);
 
@@ -1339,7 +1344,8 @@ void callSkillExecuteFunction() {
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
-    auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
+    InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
+    gripper.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
 
     //skill.parameters->setPropertyValue<GraspSkill::fromLocationProperty::type>("location", Location{});
 
@@ -1347,7 +1353,7 @@ void callSkillExecuteFunction() {
     // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_BowlGrey} );
-    AddObjectToEnvironment::eval(envData,InstanceAccept<ObjectConcept>{gripper});
+
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
     // TODO: set skill properties: agent, gripper and object...
     auto graspEntitySetters = SkillConcept::getPropertySetters(GraspSkill::getName());
@@ -1355,7 +1361,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skill.parameters, graspableObjInstance_BowlGrey, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skill.parameters, gripper, false);
 
-    skill.parameters->callFunction<void, EnvironmentData const &, ConceptParameters &>("execution", envData, *skill.parameters);
+    skill.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skill.parameters);
 }
 
 int main() {
@@ -1374,7 +1380,8 @@ int main() {
     //listObjectsInSimulation();
     //testMoveRobot();
     //testIKsolver();
-    testMotionPrimitiveExecution();
+    callSkillExecuteFunction();
+    //testMotionPrimitiveExecution();
     //generateMotion();
     //useRobotToPour(config);
 

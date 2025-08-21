@@ -866,6 +866,7 @@ public:
         addAbility("SetObjectInGripper");
         addAbility("SeeThenMoveToObject");
         addAbility("ClearObjectInGripper");
+        addAbility("UpdateProprioception");
     }
 
     // TODO: implement compare, copy, clone, getStringRepresentation(), cloneValueDataTo
@@ -965,6 +966,7 @@ public:
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
 
+
         }
         // Checking whether the robot exists in both the sim and env. TODO: add this to loop as well.
         if (sim.doesObjectExistInSimulation("/Franka")&& envData.hasEntity(franka.instanceId )) {
@@ -994,6 +996,11 @@ public:
         return deltaPoseToObject;
     }
 
+    DualQuaternion<double> getCurrentEEPoseOfRobot(){
+        return fromDQToPose(robot.getCurrentRobotEEPose());
+    }
+
+
 
     bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {
         cout << "Called executeAbility from Execution!" << endl;
@@ -1011,6 +1018,8 @@ public:
         } else if (ability.isSubConceptOfNoCheck("ClearObjectInGripper")) {
             auto const &object = ability.parameters->getValue<ClearObjectInGripperAbility::oProperty>();
             executeClearObjectInGripper(object);
+        } else if (ability.isSubConceptOfNoCheck("UpdateProprioception")) {
+            executeUpdateProprioception(env);
         } else if (ability.isSubConceptOfNoCheck("SeeThenMoveToObject")) {
 
             if (!ability.parameters->hasKnownProperty("ignoreInstancesOfConcepts")) {
@@ -1205,6 +1214,16 @@ private:
         removeObjectFromGripper(sim.get(), simObjectName);
         AndreiUtils::sleepMSec(1000);
     }
+
+    void executeUpdateProprioception(EnvironmentData &env){
+        // updating gripper Pose to be the same with EE pose
+        std::cout << "Executing: UpdateProprioception\n";
+        auto currentEElocation = getCurrentEEPoseOfRobot();
+        initializeEnvironmentFromSimulation(env); // refreshing environment data before doing anything
+        auto const franka= env.getEntity("FrankaPanda");
+        auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
+        SetInstancePose::eval(gripper, ConceptLibrary::Pose {currentEElocation});
+    }
 };
 
 void testMotionPrimitiveExecution() {
@@ -1253,7 +1272,9 @@ void testMotionPrimitiveExecution() {
     // some tests for grasp location
     auto const testpose= graspableObjInstance_plasticcup2.parameters->getValue<GraspableObjectConcept::locationProperty>().getGlobalPose();
 
-    auto const testdqzero= AndreiUtils::DualQuaternion<double>::createFromCoefficients(1,0,0,0,0.0, 0.0, 0.0, 0.0);
+    auto const testdqzero= AndreiUtils::DualQuaternion<double>::createFromCoefficients(0,0,0,1,0.0, 0.0, 0.0, 0.0);
+
+
 
     auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     auto const &gripperLocation = gripper.parameters->getValue<PhysicalEntityConcept::locationProperty>();
@@ -1280,6 +1301,7 @@ void testMotionPrimitiveExecution() {
     auto const graspRotAngles= graspLocation.get().getGlobalPose().q.getRotation();
 
     auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {graspRotAngles, Eigen::Vector3d{0.2, 0.10, 0.3}});
+    auto const testformismatch= ConceptLibrary::Pose(AndreiUtils::Posed { Eigen::Quaterniond{0,1,0,0}, Eigen::Vector3d{0.2, 0.20, 0.2}});
 
 
     cout<< "grasp Location for the Bowl cup Instance is: "<< graspXYZ<< endl;
@@ -1306,7 +1328,7 @@ void testMotionPrimitiveExecution() {
 
 
     ConceptParameters instanceProperties;
-    instanceProperties.setPropertyValue<Location>("goal", Location{graspPosetest});
+    instanceProperties.setPropertyValue<Location>("goal", Location{testformismatch});  // or zeroPose for test or graspPosetest for grasp location test
     instanceProperties.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     InstanceAccept<AbilityConcept> moveRobot("testMoveRobotCartesian1", {"MoveRobotBodyCartesian"}, instanceProperties);
 
@@ -1341,10 +1363,16 @@ void testMotionPrimitiveExecution() {
         exec.executability(primitive);  // reuse the same Execution
     }
     //*/
-    auto res4 =ExecuteAbility::eval(franka, seeThenMove,envData);
+    //auto res4 =ExecuteAbility::eval(franka, seeThenMove,envData);
     auto res = ExecuteAbility::eval(franka, moveRobot,envData);
-    auto res2 = ExecuteAbility::eval(franka, setObject,envData);
-    auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
+    auto currentEElocation = exec.getCurrentEEPoseOfRobot();
+    exec.initializeEnvironmentFromSimulation(envData);
+    auto currentGripperLocation= GetInstancePose::eval(envData.getEntity(gripper.instanceId));
+    cout << "current EE location of the robot is: "<< currentEElocation.toString()<< endl;
+    cout << "current gripper location  is: "<< currentGripperLocation->q.toString()<< endl;
+    AndreiUtils::sleepMSec(10000);
+    //auto res2 = ExecuteAbility::eval(franka, setObject,envData);
+    //auto res3 = ExecuteAbility::eval(franka, moveRobot2,envData);
 
     //cout << "ExecuteAbility res = " << res->b << endl;
 
@@ -1358,6 +1386,7 @@ void callSkillExecuteFunction() {
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
+    InstanceAccept<EntityConcept> groundInstance("GroundInstance");
     gripper.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
 
     //skill.parameters->setPropertyValue<GraspSkill::fromLocationProperty::type>("location", Location{});
@@ -1366,6 +1395,8 @@ void callSkillExecuteFunction() {
     // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_BowlGrey} );
+    AddEntityToEnvironment::eval(envData, InstanceAccept<EntityConcept>{groundInstance} );
+
 
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
     // TODO: set skill properties: agent, gripper and object...

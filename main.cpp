@@ -1405,7 +1405,9 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_BowlGrey, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skillGrasp.parameters, gripper, false);
 
-    skillGrasp.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillGrasp.parameters);
+    auto const GraspResult= skillGrasp.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillGrasp.parameters);
+
+
 
     auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0.0, 0.0, 0.0}});
 
@@ -1416,7 +1418,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_BowlGrey, false);
     AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper, false);
 
-    skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters);
+    skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
 
     AndreiUtils::sleepMSec(3000);
 

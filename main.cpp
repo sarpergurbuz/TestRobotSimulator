@@ -28,6 +28,7 @@
 #include <ConceptLibrary/LibraryInit.h>
 #include <ConceptLibrary/skills/GraspSkill.h>
 #include <ConceptLibrary/skills/TransportSkill.h>
+#include <ConceptLibrary/skills/ReleaseSkill.h>
 #include <ConceptLibrary/skills/PourSkill.h>
 #include <ConceptLibrary/utils.h>
 #include <ConceptLibrary/valueDomains/variations/utilsJson.hpp>
@@ -1003,7 +1004,7 @@ public:
 
 
     bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {
-        cout << "Called executeAbility from Execution!" << endl;
+
         if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian")) {
             auto const &goalLocation = ability.parameters->getValue<MoveRobotBodyCartesianAbility::goalProperty>();
             auto const &goalPose= goalLocation.getGlobalPose();
@@ -1217,7 +1218,7 @@ private:
 
     void executeUpdateProprioception(EnvironmentData &env){
         // updating gripper Pose to be the same with EE pose
-        std::cout << "Executing: UpdateProprioception\n";
+        std::cout << "Executing: UpdateProprioception. Updating gripper Pose and instance locations. \n";
         auto currentEElocation = getCurrentEEPoseOfRobot();
         initializeEnvironmentFromSimulation(env); // refreshing environment data before doing anything
         auto const franka= env.getEntity("FrankaPanda");
@@ -1409,7 +1410,7 @@ void callSkillExecuteFunction() {
 
 
 
-    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0.0, 0.0, 0.0}});
+    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0.3, 0.3, 0.2}});
 
     InstanceAccept<SkillConcept> skillTransport("TestTransportSkill", {TransportSkill::getName()}, nlohmann::json{});
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
@@ -1418,7 +1419,18 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_BowlGrey, false);
     AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper, false);
 
-    skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
+    auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
+
+    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0.3, 0.0, 0.0}});
+
+    InstanceAccept<SkillConcept> skillRelease("TestReleaseSkill", {ReleaseSkill::getName()}, nlohmann::json{});
+    skillRelease.parameters->setPropertyValue<ReleaseSkill::toLocationProperty::type>("toLocation", Location{goalForRelease});
+    auto releaseEntitySetters = SkillConcept::getPropertySetters(ReleaseSkill::getName());
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "a")(*skillRelease.parameters, franka, false);
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_BowlGrey, false);
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "g")(*skillRelease.parameters, gripper, false);
+
+    auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters, TransportResult);
 
     AndreiUtils::sleepMSec(3000);
 

@@ -16,6 +16,7 @@
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianAbility.h>
 #include <ConceptLibrary/abilities/MoveGripperAbility.h>
 #include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
+#include <ConceptLibrary/abilities/MoveRobotBodyCartesianWithIntermediateGoalsAbility.h>
 #include <ConceptLibrary/abilities/ClearObjectInGripperAbility.h>
 #include <ConceptLibrary/abilities/SeeThenMoveToObjectAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
@@ -862,6 +863,7 @@ public:
           path() {
         initializeSimData(nameConvertor, objectSpecificTranslationAdjustment);
         // Register abilities that this class can handle
+        addAbility("MoveRobotBodyCartesianWithIntermediateGoals");
         addAbility("MoveRobotBodyCartesian");
         addAbility("MoveGripper");
         addAbility("SetObjectInGripper");
@@ -1010,6 +1012,8 @@ public:
             auto const &goalPose= goalLocation.getGlobalPose();
             auto const goalPosed = goalPose.q;
             executeMoveRobotBodyCartesian(goalPosed);
+        } else if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
+            executeMoveRobotBodyCartesianWithIntermediateGoals(ability);
         } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
             auto const gripperStatusOpen= ability.parameters->getValue<MoveGripperAbility::openGripperProperty>();
             executeMoveGripper(gripperStatusOpen);
@@ -1073,6 +1077,40 @@ private:
         path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
 
         AndreiUtils::sleepMSec(1000);
+    }
+
+    void executeMoveRobotBodyCartesianWithIntermediateGoals(InstanceAccept<AbilityConcept> const &ability){
+
+        auto const isGoalIncluded=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isGoalIncludedProperty>();
+        auto  waypoints=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::intermediateGoalsProperty>().seq;
+        auto const timeout=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::timeoutProperty>();
+
+        if(!isGoalIncluded.b){
+            waypoints.pop_back();
+        }
+
+        int waypointIndexUntilTimeout = 0;
+        double elapsedTime = 0;
+        AndreiUtils::Timer t;
+
+        for (; waypointIndexUntilTimeout < waypoints.size(); ++waypointIndexUntilTimeout) {
+            auto goalLocation = waypoints[waypointIndexUntilTimeout];
+            auto goalPose =goalLocation.getGlobalPose().q;
+            executeMoveRobotBodyCartesian(goalPose);
+            elapsedTime = t.measure();
+            if (timeout.n >= 0 && elapsedTime * 2 >= timeout.n) {
+                ++waypointIndexUntilTimeout;
+                ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isTimeoutReachedProperty>(trueBoolean);
+                break;
+            }
+        }
+
+        ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::waypointIndexUntilTimeoutReachedProperty>(Number(waypointIndexUntilTimeout));
+        ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::elapsedTimeProperty>(Number(elapsedTime));
+
+
+
+
     }
 
     void executeMoveGripper(Boolean const gripperStatusOpen) {

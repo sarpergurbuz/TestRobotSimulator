@@ -1490,7 +1490,7 @@ void callSkillExecuteFunction() {
     auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters, TransportResult);
 
 
-    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{-0.6, -0.3, 0.0}});
+    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{0, 0, 0, -1}, Eigen::Vector3d{0, -0.6, 0.0}});
 
     InstanceAccept<SkillConcept> skillRelease("TestReleaseSkill", {ReleaseSkill::getName()}, nlohmann::json{});
     skillRelease.parameters->setPropertyValue<ReleaseSkill::toLocationProperty::type>("toLocation", Location{goalForRelease});

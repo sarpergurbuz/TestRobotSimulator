@@ -18,6 +18,7 @@
 #include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianWithIntermediateGoalsAbility.h>
 #include <ConceptLibrary/abilities/ClearObjectInGripperAbility.h>
+#include <ConceptLibrary/abilities/IdleAgentAbility.h>
 #include <ConceptLibrary/abilities/SeeThenMoveToObjectAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
 #include <ConceptLibrary/entities/OpenableObjectConcept.h>
@@ -866,6 +867,7 @@ public:
         addAbility("MoveRobotBodyCartesianWithIntermediateGoals");
         addAbility("MoveRobotBodyCartesian");
         addAbility("MoveGripper");
+        addAbility("IdleAgent");
         addAbility("SetObjectInGripper");
         addAbility("SeeThenMoveToObject");
         addAbility("ClearObjectInGripper");
@@ -1015,6 +1017,8 @@ public:
 
         } else if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
             executeMoveRobotBodyCartesianWithIntermediateGoals(ability);
+        } else if (ability.isSubConceptOfNoCheck("IdleAgent")) {
+            executeIdleAgent(ability);
         } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
             auto const gripperStatusOpen= ability.parameters->getValue<MoveGripperAbility::openGripperProperty>();
             executeMoveGripper(gripperStatusOpen);
@@ -1085,6 +1089,7 @@ private:
         auto const isGoalIncluded=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isGoalIncludedProperty>();
         auto  waypoints=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::intermediateGoalsProperty>().seq;
         auto const timeout=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::timeoutProperty>();
+        cout<< "timeout value for the MoveRobotBodyCartesianWithIntermediateGoals is " << timeout.n << endl;
 
         if(!isGoalIncluded.b){
             waypoints.pop_back();
@@ -1097,10 +1102,9 @@ private:
         for (; waypointIndexUntilTimeout < waypoints.size(); ++waypointIndexUntilTimeout) {
             auto goalLocation = waypoints[waypointIndexUntilTimeout];
             auto goalPose =goalLocation.getGlobalPose().q;
-            cout<< "<<<<<<<<<going to the location for pour: " << goalPose.getTranslation()<< endl;
             executeMoveRobotBodyCartesian(goalPose);
             elapsedTime = t.measure();
-            if (timeout.n >= 0 && elapsedTime * 2 >= timeout.n) {
+            if (timeout.n >= 0 && elapsedTime >= timeout.n) {
                 cout<<"Timeout reached !"<< endl;
                 ++waypointIndexUntilTimeout;
                 ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isTimeoutReachedProperty>(trueBoolean);
@@ -1114,6 +1118,12 @@ private:
 
 
 
+    }
+
+    void executeIdleAgent(InstanceAccept<AbilityConcept> const &ability){
+        auto const waitingTime= ability.parameters->getValue<IdleAgentAbility::waitTimeSecProperty>();
+        std::cout << "Executing: Idle Agent with "<< waitingTime.n << "seconds"<< endl;
+        AndreiUtils::sleepMSec(int(waitingTime.n * 1000));
     }
 
     void executeMoveGripper(Boolean const gripperStatusOpen) {
@@ -1453,7 +1463,7 @@ void callSkillExecuteFunction() {
 
 
 
-    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{-0.1, -0.5, 0.0}});
+    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{-0.2, -0.175, 0.0}});
 
     InstanceAccept<SkillConcept> skillTransport("TestTransportSkill", {TransportSkill::getName()}, nlohmann::json{});
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
@@ -1469,7 +1479,7 @@ void callSkillExecuteFunction() {
     skillPour.parameters->setPropertyValue<PourSkill::intoProperty::type>("into", graspableObjInstance_into);
     skillPour.parameters->setPropertyValue<PourSkill::heightProperty::type>("height",Number(0.05));
     skillPour.parameters->setPropertyValue<PourSkill::angleProperty::type>("angle", Number(1.577));
-    skillPour.parameters->setPropertyValue<PourSkill::directionProperty::type>("direction",Number(1) );
+    skillPour.parameters->setPropertyValue<PourSkill::directionProperty::type>("direction",Number(0) );
     skillPour.parameters->setPropertyValue<PourSkill::timeProperty::type>("time",Number(1.5));
     skillPour.parameters->setPropertyValue<PourSkill::amountProperty::type>("amount", Number(-0.05));
     skillPour.parameters->setPropertyValue<PourSkill::spinAngleProperty::type>("spinAngle", Number(-0.2));

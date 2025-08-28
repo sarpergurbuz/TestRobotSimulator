@@ -568,3 +568,17 @@ Sequence<Location> DeterminePourPath(Instance<ConceptList<PourerConcept>> const 
 
 
 }
+
+Sequence<Location> CutAndReverse(const Sequence<Location>& inputSequence, Number indexToCutFrom) {
+    // Copy elements [0, index) — exclusive of index
+
+    auto inputVector = inputSequence.seq;
+    size_t index= indexToCutFrom.n;
+    std::vector<Location> result(inputVector.begin(), inputVector.begin() + min(index, inputVector.size()));
+
+    // Reverse in place
+    std::reverse(result.begin(), result.end());
+    auto resultSequence = Sequence(result);
+
+    return resultSequence;
+}

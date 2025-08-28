@@ -1007,11 +1007,12 @@ public:
 
     bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {
 
-        if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian")) {
+        if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian") && !ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
             auto const &goalLocation = ability.parameters->getValue<MoveRobotBodyCartesianAbility::goalProperty>();
             auto const &goalPose= goalLocation.getGlobalPose();
             auto const goalPosed = goalPose.q;
             executeMoveRobotBodyCartesian(goalPosed);
+
         } else if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
             executeMoveRobotBodyCartesianWithIntermediateGoals(ability);
         } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
@@ -1076,7 +1077,7 @@ private:
         auto goalPoseInvertedZ= goalPose.addRotation(ZinvertQuaternion);
         path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
 
-        AndreiUtils::sleepMSec(1000);
+        //AndreiUtils::sleepMSec(1000); // MAKE THIS WAIT OPTIONAL
     }
 
     void executeMoveRobotBodyCartesianWithIntermediateGoals(InstanceAccept<AbilityConcept> const &ability){
@@ -1096,9 +1097,11 @@ private:
         for (; waypointIndexUntilTimeout < waypoints.size(); ++waypointIndexUntilTimeout) {
             auto goalLocation = waypoints[waypointIndexUntilTimeout];
             auto goalPose =goalLocation.getGlobalPose().q;
+            cout<< "<<<<<<<<<going to the location for pour: " << goalPose.getTranslation()<< endl;
             executeMoveRobotBodyCartesian(goalPose);
             elapsedTime = t.measure();
             if (timeout.n >= 0 && elapsedTime * 2 >= timeout.n) {
+                cout<<"Timeout reached !"<< endl;
                 ++waypointIndexUntilTimeout;
                 ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isTimeoutReachedProperty>(trueBoolean);
                 break;
@@ -1423,7 +1426,8 @@ void callSkillExecuteFunction() {
     Execution exec;
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("BowlGreyIkeaInstance");
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("PlasticCupInstance2");
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_into("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
     gripper.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
@@ -1434,6 +1438,7 @@ void callSkillExecuteFunction() {
     // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_BowlGrey} );
+    AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_into} );
     AddEntityToEnvironment::eval(envData, InstanceAccept<EntityConcept>{groundInstance} );
 
 
@@ -1448,7 +1453,7 @@ void callSkillExecuteFunction() {
 
 
 
-    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0.3, 0.3, 0.2}});
+    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{-0.1, -0.5, 0.0}});
 
     InstanceAccept<SkillConcept> skillTransport("TestTransportSkill", {TransportSkill::getName()}, nlohmann::json{});
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
@@ -1459,7 +1464,23 @@ void callSkillExecuteFunction() {
 
     auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
 
-    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0.3, 0.0, 0.0}});
+    InstanceAccept<SkillConcept> skillPour("TestPourSkill", {PourSkill::getName()}, nlohmann::json{});
+    skillPour.parameters->setPropertyValue<PourSkill::fromProperty::type>("from", graspableObjInstance_BowlGrey);
+    skillPour.parameters->setPropertyValue<PourSkill::intoProperty::type>("into", graspableObjInstance_into);
+    skillPour.parameters->setPropertyValue<PourSkill::heightProperty::type>("height",Number(0.05));
+    skillPour.parameters->setPropertyValue<PourSkill::angleProperty::type>("angle", Number(1.577));
+    skillPour.parameters->setPropertyValue<PourSkill::directionProperty::type>("direction",Number(1) );
+    skillPour.parameters->setPropertyValue<PourSkill::timeProperty::type>("time",Number(1.5));
+    skillPour.parameters->setPropertyValue<PourSkill::amountProperty::type>("amount", Number(-0.05));
+    skillPour.parameters->setPropertyValue<PourSkill::spinAngleProperty::type>("spinAngle", Number(-0.2));
+    auto pourEntitySetters = SkillConcept::getPropertySetters(PourSkill::getName());
+    AndreiUtils::mapGet<string>(pourEntitySetters, "a")(*skillPour.parameters, franka, false);
+    AndreiUtils::mapGet<string>(pourEntitySetters, "g")(*skillPour.parameters, gripper, false);
+
+    auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters, TransportResult);
+
+
+    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{-0.6, -0.3, 0.0}});
 
     InstanceAccept<SkillConcept> skillRelease("TestReleaseSkill", {ReleaseSkill::getName()}, nlohmann::json{});
     skillRelease.parameters->setPropertyValue<ReleaseSkill::toLocationProperty::type>("toLocation", Location{goalForRelease});
@@ -1468,7 +1489,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_BowlGrey, false);
     AndreiUtils::mapGet<string>(releaseEntitySetters, "g")(*skillRelease.parameters, gripper, false);
 
-    auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters, TransportResult);
+    auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters, PourResult);
 
     AndreiUtils::sleepMSec(3000);
 

@@ -1436,7 +1436,7 @@ void callSkillExecuteFunction() {
     Execution exec;
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    InstanceAccept<GraspableObjectConcept> graspableObjInstance_BowlGrey("PlasticCupInstance2");
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("MilkCartonLidlInstance1");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_into("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
@@ -1447,7 +1447,7 @@ void callSkillExecuteFunction() {
     EnvironmentData envData;
     // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
-    AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_BowlGrey} );
+    AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_from} );
     AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_into} );
     AddEntityToEnvironment::eval(envData, InstanceAccept<EntityConcept>{groundInstance} );
 
@@ -1456,7 +1456,7 @@ void callSkillExecuteFunction() {
     // TODO: set skill properties: agent, gripper and object...
     auto graspEntitySetters = SkillConcept::getPropertySetters(GraspSkill::getName());
     AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skillGrasp.parameters, franka, false);
-    AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_BowlGrey, false);
+    AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skillGrasp.parameters, gripper, false);
 
     auto const GraspResult= skillGrasp.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillGrasp.parameters);
@@ -1469,13 +1469,13 @@ void callSkillExecuteFunction() {
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
     auto transportEntitySetters = SkillConcept::getPropertySetters(TransportSkill::getName());
     AndreiUtils::mapGet<string>(transportEntitySetters, "a")(*skillTransport.parameters, franka, false);
-    AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_BowlGrey, false);
+    AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper, false);
 
     auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
 
     InstanceAccept<SkillConcept> skillPour("TestPourSkill", {PourSkill::getName()}, nlohmann::json{});
-    skillPour.parameters->setPropertyValue<PourSkill::fromProperty::type>("from", graspableObjInstance_BowlGrey);
+    skillPour.parameters->setPropertyValue<PourSkill::fromProperty::type>("from", graspableObjInstance_from);
     skillPour.parameters->setPropertyValue<PourSkill::intoProperty::type>("into", graspableObjInstance_into);
     skillPour.parameters->setPropertyValue<PourSkill::heightProperty::type>("height",Number(0.05));
     skillPour.parameters->setPropertyValue<PourSkill::angleProperty::type>("angle", Number(1.577));
@@ -1496,7 +1496,7 @@ void callSkillExecuteFunction() {
     skillRelease.parameters->setPropertyValue<ReleaseSkill::toLocationProperty::type>("toLocation", Location{goalForRelease});
     auto releaseEntitySetters = SkillConcept::getPropertySetters(ReleaseSkill::getName());
     AndreiUtils::mapGet<string>(releaseEntitySetters, "a")(*skillRelease.parameters, franka, false);
-    AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_BowlGrey, false);
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(releaseEntitySetters, "g")(*skillRelease.parameters, gripper, false);
 
     auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters, PourResult);

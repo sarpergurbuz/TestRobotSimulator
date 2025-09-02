@@ -582,3 +582,90 @@ Sequence<Location> CutAndReverse(const Sequence<Location>& inputSequence, Number
 
     return resultSequence;
 }
+
+
+Boolean isGraspSuitableForPour(Instance<ConceptList<ContainerConcept>> const &into, InstanceAccept<PourerSurfaceConcept> const &fromSurfaceInstance, InstanceAccept<PouringSurfaceConcept> const &intoSurfaceInstance, Number pourDirection_n, ConceptLibrary::Pose const &endEffectorToObjectOrigin) {
+
+
+
+
+    auto const zTranslation = AndreiUtils::Posed {AndreiUtils::qIdentity<double>(), Eigen::Vector3d{0.0, 0.0, -0.1}};
+
+
+
+
+    ObjectSurface *intoSurface = dynamic_pointer_cast<ObjectSurface>(intoSurfaceInstance.geometry).get();
+    ObjectSurface *fromSurface = dynamic_pointer_cast<ObjectSurface>(fromSurfaceInstance.geometry).get();
+
+    AndreiUtils::Posed const &I_q_IS = intoSurface->getSurfaceOrigPose();
+    AndreiUtils::Posed const &F_q_FS = fromSurface->getSurfaceOrigPose();
+    auto const W_q_I = GetInstancePose::eval(into);
+    //auto const W_q_F = GetInstancePose::eval(from);
+    Eigen::Matrix3d I_r_IS = I_q_IS.getRotationAsMatrix();
+    Eigen::Matrix3d F_r_FS = F_q_FS.getRotationAsMatrix();
+    AndreiUtils::Posed const FS_q_F = F_q_FS.inverse();
+    Eigen::Vector3d I_z_IS = I_r_IS * zAxis3d<double>();
+    Eigen::Vector3d F_z_FS = F_r_FS * zAxis3d<double>();
+
+
+    double const pourDirection = pourDirection_n.n;
+    Vector3d direction = Vector3d(cos(pourDirection), sin(pourDirection), 0);
+    double l = into.parameters->getValue<ObjectConcept::interactionVolumeProperty>().n;  // bowl interaction volume
+    Eigen::Vector3d I_pourDirection = I_q_IS.getRotationAsMatrix() * direction;
+    Vector3d I_p_F = I_pourDirection * l * 1.25;
+
+    // bring "from" into interaction volume of "into" along the pouring direction
+    AndreiUtils::Posed qTransform1(qIdentity<double>(), F_q_FS.getTranslation().z() * I_z_IS);
+    AndreiUtils::Posed qTransform2(Eigen::Quaterniond(Eigen::AngleAxisd(
+                                           -AndreiUtils::vectorAngle(AndreiUtils::zAxis3d<double>(), F_z_FS), yAxis3d<double>())),
+                                   Eigen::Vector3d::Zero());
+    AndreiUtils::Posed qTransform = qTransform1 * qTransform2;
+    Eigen::Vector3d I_pourRotationAxis = I_z_IS.cross(I_pourDirection);  // this is our vector
+    Eigen::Matrix3d I_r0_FS = AndreiUtils::getOrientationFromAxes(I_pourDirection, I_pourRotationAxis, I_z_IS);
+    AndreiUtils::Posed fromObjectPosePrePourGlobal = W_q_I->q * AndreiUtils::Posed(I_r0_FS, I_p_F) * qTransform * FS_q_F;
+
+    auto const currentGraspEEPoseGlobal= fromObjectPosePrePourGlobal * endEffectorToObjectOrigin.q;
+    auto const backTranslatedCurrentGraspEEPoseGlobal = currentGraspEEPoseGlobal * zTranslation;
+    auto const intoSurfaceInstanceGlobalPose= GetInstancePose::eval(intoSurfaceInstance);
+    auto const backTranslatedCurrentGraspEEPoseWrtIntoSurface = intoSurfaceInstanceGlobalPose->q.inverse() * backTranslatedCurrentGraspEEPoseGlobal;
+    auto const fromObjectPosePrePourWrtIntoSurface = intoSurfaceInstanceGlobalPose->q.inverse() * fromObjectPosePrePourGlobal;
+    auto const fromSurfacePosePrePourWrtIntoSurface = fromObjectPosePrePourWrtIntoSurface* I_q_IS;                                // this is our point
+    auto const fromSurfaceXYZPrePourWrtIntoSurface =fromSurfacePosePrePourWrtIntoSurface.getTranslation();
+
+    Eigen::Vector2d dir_xy(I_pourRotationAxis.x(), I_pourRotationAxis.y());
+    Eigen::Vector2d P_xy(fromSurfaceXYZPrePourWrtIntoSurface.x(), fromSurfaceXYZPrePourWrtIntoSurface.y());
+    dir_xy.normalize();
+
+    double dx = dir_xy.x();
+    double dy = dir_xy.y();
+    double a = -dy;
+    double b =  dx;
+    double c = -(a * P_xy.x() + b * P_xy.y());
+
+    double graspX = backTranslatedCurrentGraspEEPoseWrtIntoSurface.getTranslation().x();
+    double graspY = backTranslatedCurrentGraspEEPoseWrtIntoSurface.getTranslation().y();
+
+    if (c>0){
+        if (a*graspX + b* graspY +c > 0){
+            cout<<" !!!!Current grasp pose is not suitable for pour !"<< endl;
+            return falseBoolean;
+        }
+
+        else{
+            return trueBoolean;
+        }
+    }
+
+    else {
+        if (a*graspX + b* graspY +c < 0){
+            cout<<" !!!!Current grasp pose is not suitable for pour !"<< endl;
+            return falseBoolean;
+        }
+        else{
+            return trueBoolean;
+        }
+
+    }
+
+
+}

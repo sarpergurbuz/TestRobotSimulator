@@ -859,8 +859,8 @@ class Execution : public ConceptLibrary::Executor {
 public:
     Execution()
         : Executor(),
-          sim(SimulationInterface::getInterface()),
-          robot(Robot::createFromType("PandaRobotWithGripper", sim, "PandaGripper")),
+          sim(&SimulationInterface::getInterface()),
+          robot(Robot::createFromType("PandaRobotWithGripper", *sim, "PandaGripper")),
           path() {
         initializeSimData(nameConvertor, objectSpecificTranslationAdjustment);
         // Register abilities that this class can handle
@@ -930,14 +930,14 @@ public:
     void initializeEnvironmentFromSimulation(EnvironmentData const &envData) const {
         // in the function, go through all the entities of the environment and if they are contained in simulation, get their pose and update their pose with SetInstancePose
         std::vector<std::string> presentObjectsInEnv;
-        auto &simInterface = sim.get();
+        auto &simInterface = sim->get();
 
         for (const auto &pair : nameConvertor) {  // this for loop is for graspable objects
             const std::string &objectName = pair.first;
             const std::string &simObjectName = pair.second;
 
             // Check if the object exists in the simulation first
-            if (!sim.doesObjectExistInSimulation(simObjectName)) {
+            if (!sim->doesObjectExistInSimulation(simObjectName)) {
                 continue; // Skip if the object is not in the simulation
             }
 
@@ -959,7 +959,7 @@ public:
         auto const franka= envData.getEntity("FrankaPanda");
         auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
 
-        if (sim.doesObjectExistInSimulation("/Franka/FrankaGripper")&& envData.hasEntity(gripper.instanceId )) {
+        if (sim->doesObjectExistInSimulation("/Franka/FrankaGripper")&& envData.hasEntity(gripper.instanceId )) {
             // Get pose from simulation
             cout<< "-> Gripper both exist in simulation and envData. Initializing gripper."<< endl;
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka/FrankaGripper"));
@@ -974,7 +974,7 @@ public:
 
         }
         // Checking whether the robot exists in both the sim and env. TODO: add this to loop as well.
-        if (sim.doesObjectExistInSimulation("/Franka")&& envData.hasEntity(franka.instanceId )) {
+        if (sim->doesObjectExistInSimulation("/Franka")&& envData.hasEntity(franka.instanceId )) {
             // Get pose from simulation
             cout<< "-> Franka both exist in simulation and envData. Initializing Franka."<< endl;
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka"));
@@ -1063,7 +1063,7 @@ protected:
     }
 
 private:
-    SimulationInterface& sim;
+    SimulationInterface *sim;
     Robot robot;
     PathController path;
     std::map<std::string, std::string> nameConvertor;
@@ -1256,14 +1256,14 @@ private:
         Gripper* gripper = robot.getGripper();
         std::string const &instanceId = object.instanceId.s;
         std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
-        sim.get().set_object_parent(simObjectName, gripper->getGripperName(), true);
+        sim->get().set_object_parent(simObjectName, gripper->getGripperName(), true);
         AndreiUtils::sleepMSec(1000);
     }
     void executeClearObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
         std::cout << "Executing: ClearObjectInGripper\n";
         std::string const &instanceId = object.instanceId.s;
         std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
-        removeObjectFromGripper(sim.get(), simObjectName);
+        removeObjectFromGripper(sim->get(), simObjectName);
         AndreiUtils::sleepMSec(1000);
     }
 
@@ -1463,7 +1463,7 @@ void callSkillExecuteFunction() {
 
 
 
-    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{-0.2, -0.175, 0.0}});
+    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{0,0,0,1}, Eigen::Vector3d{-0.2, -0.175, 0.0}});
 
     InstanceAccept<SkillConcept> skillTransport("TestTransportSkill", {TransportSkill::getName()}, nlohmann::json{});
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
@@ -1472,7 +1472,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper, false);
 
-    auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
+    //auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
 
     InstanceAccept<SkillConcept> skillPour("TestPourSkill", {PourSkill::getName()}, nlohmann::json{});
     skillPour.parameters->setPropertyValue<PourSkill::fromProperty::type>("from", graspableObjInstance_from);
@@ -1487,10 +1487,10 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(pourEntitySetters, "a")(*skillPour.parameters, franka, false);
     AndreiUtils::mapGet<string>(pourEntitySetters, "g")(*skillPour.parameters, gripper, false);
 
-    auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters, TransportResult);
+    auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters, trueBoolean);
 
 
-    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{0, 0, 0, -1}, Eigen::Vector3d{0, -0.6, 0.0}});
+    auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1, 0, 0, 0}, Eigen::Vector3d{0.4, 0.03, 0.0}});
 
     InstanceAccept<SkillConcept> skillRelease("TestReleaseSkill", {ReleaseSkill::getName()}, nlohmann::json{});
     skillRelease.parameters->setPropertyValue<ReleaseSkill::toLocationProperty::type>("toLocation", Location{goalForRelease});
@@ -1511,8 +1511,7 @@ int main() {
     auto config = readJsonFile("../config/testSimulatorArguments.json");
 
     ConceptLibrary::useAllGeneratedData();
-    ConceptLibrary::LibraryInit::setConfigurationParameters(
-            ConfigurationParameters(config.at("ConceptLibrary"), "ConceptLibrary"));
+    ConceptLibrary::LibraryInit::setConfigurationParameters(ConfigurationParameters(config.at("ConceptLibrary"), "ConceptLibrary"));
     ConceptLibrary::LibraryInit::init();
     RobotModelling::setConfigurationParameters(ConfigurationParameters(config.at("RobotModelling"), "RobotModelling"));
 

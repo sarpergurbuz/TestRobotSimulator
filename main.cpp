@@ -1436,7 +1436,7 @@ void callSkillExecuteFunction() {
     Execution exec;
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("MilkCartonLidlInstance1");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("PlasticCupInstance2");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_into("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
@@ -1487,7 +1487,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(pourEntitySetters, "a")(*skillPour.parameters, franka, false);
     AndreiUtils::mapGet<string>(pourEntitySetters, "g")(*skillPour.parameters, gripper, false);
 
-    auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters, trueBoolean);
+    auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters);
 
 
     auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1, 0, 0, 0}, Eigen::Vector3d{0.4, 0.03, 0.0}});
@@ -1499,7 +1499,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(releaseEntitySetters, "g")(*skillRelease.parameters, gripper, false);
 
-    auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters, PourResult);
+    auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters);
 
     AndreiUtils::sleepMSec(3000);
 

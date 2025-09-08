@@ -669,3 +669,25 @@ Boolean isGraspSuitableForPour(Instance<ConceptList<ContainerConcept>> const &in
 
 
 }
+
+Location DetermineSafePoseForGraspSelection(Instance<ConceptList<ObjectConcept>> const &objectToBeGrasped){
+
+    auto const objectPose = (GetInstancePose::eval(objectToBeGrasped));
+    auto const objectPosedGlobal = objectPose.get().q;
+
+    auto const pourRelatedSurfaceVal = ConceptLibrary::DeterminePouringSurface::eval(InstanceAccept<ContainerConcept>{objectToBeGrasped});
+    auto const pourRelatedSurface = pourRelatedSurfaceVal.get();
+
+    auto pourRelatedSurfacePose = (GetInstancePose::eval(pourRelatedSurface));
+    auto const pourRelatedSurfacePosedGlobal =pourRelatedSurfacePose->q;
+
+    auto const heightDifference = abs(pourRelatedSurfacePosedGlobal.getTranslation().z()-objectPosedGlobal.getTranslation().z())*1.4;
+    auto const offset= AndreiUtils::Posed {Eigen::Quaterniond{1,0,0,0}, Eigen::Vector3d{0, 0, heightDifference}};
+    auto const offsetSafePose = objectPosedGlobal*offset;
+    auto const twist = AndreiUtils::Posed{AndreiUtils::qxRotation(M_PI), Eigen::Vector3d{0, 0, 0}};
+    auto const finalSafePose = offsetSafePose* twist;
+    auto const finalSafeLocation = Location(finalSafePose);
+
+    return finalSafeLocation;
+
+}

@@ -691,3 +691,31 @@ Location DetermineSafePoseForGraspSelection(Instance<ConceptList<ObjectConcept>>
     return finalSafeLocation;
 
 }
+
+
+Number DeterminePourDirection(InstanceAccept<PourerSurfaceConcept> const &fromSurfaceInstance, InstanceAccept<PouringSurfaceConcept> const &intoSurfaceInstance){
+
+    auto const intoSurfaceInstancePoseVal = GetInstancePose::eval(intoSurfaceInstance);
+    auto const fromSurfaceInstancePoseVal = GetInstancePose::eval(fromSurfaceInstance);
+    auto const intoSurfaceInstancePosed =intoSurfaceInstancePoseVal->q;
+    auto const fromSurfaceInstancePosed = fromSurfaceInstancePoseVal->q;
+
+    auto const fromSurfaceWrtIntoSurface = intoSurfaceInstancePosed.inverse() * fromSurfaceInstancePosed;
+    auto const fromSurfaceWrtIntoSurfaceXYZ = fromSurfaceWrtIntoSurface.getTranslation();
+    Vector3d I_pourDirection = {fromSurfaceWrtIntoSurfaceXYZ.x(), fromSurfaceWrtIntoSurfaceXYZ.y(), 0};
+    I_pourDirection.normalize();
+
+    ObjectSurface *intoSurface = dynamic_pointer_cast<ObjectSurface>(intoSurfaceInstance.geometry).get();
+
+    AndreiUtils::Posed const &I_q_IS = intoSurface->getSurfaceOrigPose();
+
+    Eigen::Matrix3d I_r_IS = I_q_IS.getRotationAsMatrix();
+
+    Eigen::Vector3d dir_local = I_r_IS.transpose() * I_pourDirection;
+
+    // angle in radians, range [-pi, pi]
+    double pourDirection = std::atan2(dir_local.y(), dir_local.x());
+
+    return Number(pourDirection);
+
+}

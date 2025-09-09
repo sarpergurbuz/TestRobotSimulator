@@ -1126,6 +1126,7 @@ private:
     }
 
     void executeLocalizeObject(InstanceAccept<AbilityConcept> const &ability, EnvironmentData const &envData){
+        cout<< "Executing LocalizeObject" <<endl;
         auto const conceptValue=ability.parameters->getValue<LocalizeObjectAbility::objectConceptToLocalizeProperty>();
 
         auto &simInterface = sim->get();
@@ -1147,7 +1148,7 @@ private:
             if (!InstanceAccept<ObjectConcept>(objectName).isSubConceptOfNoCheck(conceptValue.s)){ // skip if object is not suitable for Localization
                 continue;
             }
-
+            cout<< "Localizing object: " << objectName << endl;
             // Get pose from simulation
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose(simObjectName));
             ConceptLibrary::Pose rawPose(poseInSim);

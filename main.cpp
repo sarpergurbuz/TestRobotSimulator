@@ -18,6 +18,7 @@
 #include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianWithIntermediateGoalsAbility.h>
 #include <ConceptLibrary/abilities/ClearObjectInGripperAbility.h>
+#include <ConceptLibrary/abilities/LocalizeObjectAbility.h>
 #include <ConceptLibrary/abilities/IdleAgentAbility.h>
 #include <ConceptLibrary/abilities/SeeThenMoveToObjectAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
@@ -872,6 +873,8 @@ public:
         addAbility("SeeThenMoveToObject");
         addAbility("ClearObjectInGripper");
         addAbility("UpdateProprioception");
+        addAbility("LocalizeObject");
+
     }
 
     // TODO: implement compare, copy, clone, getStringRepresentation(), cloneValueDataTo
@@ -1017,6 +1020,8 @@ public:
 
         } else if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
             executeMoveRobotBodyCartesianWithIntermediateGoals(ability);
+        } else if (ability.isSubConceptOfNoCheck("LocalizeObject")) {
+            executeLocalizeObject(ability, env);
         } else if (ability.isSubConceptOfNoCheck("IdleAgent")) {
             executeIdleAgent(ability);
         } else if (ability.isSubConceptOfNoCheck("MoveGripper")) {
@@ -1117,6 +1122,42 @@ private:
 
 
 
+
+    }
+
+    void executeLocalizeObject(InstanceAccept<AbilityConcept> const &ability, EnvironmentData const &envData){
+        auto const conceptValue=ability.parameters->getValue<LocalizeObjectAbility::objectConceptToLocalizeProperty>();
+
+        auto &simInterface = sim->get();
+
+        for (const auto &pair : nameConvertor) {  // this for loop is for graspable objects
+            const std::string &objectName = pair.first;
+            const std::string &simObjectName = pair.second;
+
+            // Check if the object exists in the simulation first
+            if (!sim->doesObjectExistInSimulation(simObjectName)) {
+                continue; // Skip if the object is not in the simulation
+            }
+
+
+            if (!envData.hasEntity(InstanceAccept<ObjectConcept>(objectName).instanceId)) {  // auto const doIhaveMilkCarton= envData.hasEntity(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1").instanceId);
+                continue;
+            }
+
+            if (!InstanceAccept<ObjectConcept>(objectName).isSubConceptOfNoCheck(conceptValue.s)){ // skip if object is not suitable for Localization
+                continue;
+            }
+
+            // Get pose from simulation
+            AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose(simObjectName));
+            ConceptLibrary::Pose rawPose(poseInSim);
+
+            // Get object instance from env
+            auto objectInstance = envData.getEntity(InstanceAccept<ObjectConcept>(objectName).instanceId);
+
+            // Set the pose into the environment
+            SetInstancePose::eval(objectInstance, rawPose);
+        }
 
     }
 
@@ -1436,7 +1477,7 @@ void callSkillExecuteFunction() {
     Execution exec;
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("PlasticCupInstance2");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("MilkCartonLidlInstance1");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_into("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
@@ -1463,7 +1504,7 @@ void callSkillExecuteFunction() {
 
 
 
-    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{0,0,0,1}, Eigen::Vector3d{-0.2, -0.175, 0.0}});
+    auto const goalForBowl= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{0.7071,0,0,0.7071}, Eigen::Vector3d{0.4, 0.03, 0.0}});
 
     InstanceAccept<SkillConcept> skillTransport("TestTransportSkill", {TransportSkill::getName()}, nlohmann::json{});
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
@@ -1472,14 +1513,14 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper, false);
 
-    //auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters, GraspResult);
+    //auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters);
 
     InstanceAccept<SkillConcept> skillPour("TestPourSkill", {PourSkill::getName()}, nlohmann::json{});
     skillPour.parameters->setPropertyValue<PourSkill::fromProperty::type>("from", graspableObjInstance_from);
     skillPour.parameters->setPropertyValue<PourSkill::intoProperty::type>("into", graspableObjInstance_into);
     skillPour.parameters->setPropertyValue<PourSkill::heightProperty::type>("height",Number(0.05));
     skillPour.parameters->setPropertyValue<PourSkill::angleProperty::type>("angle", Number(1.577));
-    skillPour.parameters->setPropertyValue<PourSkill::directionProperty::type>("direction",Number(0) );
+    //skillPour.parameters->setPropertyValue<PourSkill::directionProperty::type>("direction",Number(0) );
     skillPour.parameters->setPropertyValue<PourSkill::timeProperty::type>("time",Number(1.5));
     skillPour.parameters->setPropertyValue<PourSkill::amountProperty::type>("amount", Number(-0.05));
     skillPour.parameters->setPropertyValue<PourSkill::spinAngleProperty::type>("spinAngle", Number(-0.2));

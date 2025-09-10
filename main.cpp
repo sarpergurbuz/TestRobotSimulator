@@ -1017,7 +1017,6 @@ public:
             auto const &goalPose= goalLocation.getGlobalPose();
             auto const goalPosed = goalPose.q;
             executeMoveRobotBodyCartesian(goalPosed);
-
         } else if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
             executeMoveRobotBodyCartesianWithIntermediateGoals(ability);
         } else if (ability.isSubConceptOfNoCheck("LocalizeObject")) {
@@ -1126,7 +1125,7 @@ private:
     }
 
     void executeLocalizeObject(InstanceAccept<AbilityConcept> const &ability, EnvironmentData const &envData){
-        cout<< "Executing LocalizeObject" <<endl;
+        cout<< "Executing LocalizeObject " <<endl;
         auto const conceptValue=ability.parameters->getValue<LocalizeObjectAbility::objectConceptToLocalizeProperty>();
 
         auto &simInterface = sim->get();
@@ -1311,9 +1310,8 @@ private:
 
     void executeUpdateProprioception(EnvironmentData &env){
         // updating gripper Pose to be the same with EE pose
-        std::cout << "Executing: UpdateProprioception. Updating gripper Pose and instance locations. \n";
+        std::cout << "Executing: UpdateProprioception. Updating gripper Pose. \n";
         auto currentEElocation = getCurrentEEPoseOfRobot();
-        initializeEnvironmentFromSimulation(env); // refreshing environment data before doing anything
         auto const franka= env.getEntity("FrankaPanda");
         auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
         SetInstancePose::eval(gripper, ConceptLibrary::Pose {currentEElocation});

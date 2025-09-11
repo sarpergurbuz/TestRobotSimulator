@@ -1046,10 +1046,11 @@ private:
     }
     void executeMoveRobotBodyCartesianWithIntermediateGoals(InstanceAccept<AbilityConcept> const &ability){
 
+        std::cout << "Executing: MoveRobotBodyCartesianWithIntermediateGoals\n";
         auto const isGoalIncluded=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isGoalIncludedProperty>();
         auto  waypoints=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::intermediateGoalsProperty>().seq;
         auto const timeout=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::timeoutProperty>();
-        cout<< "timeout value for the MoveRobotBodyCartesianWithIntermediateGoals is " << timeout.n << endl;
+        cout<< "Timeout value for the MoveRobotBodyCartesianWithIntermediateGoals is " << timeout.n << endl;
 
         if(!isGoalIncluded.b){
             waypoints.pop_back();
@@ -1074,7 +1075,6 @@ private:
 
         ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::waypointIndexUntilTimeoutReachedProperty>(Number(waypointIndexUntilTimeout));
         ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::elapsedTimeProperty>(Number(elapsedTime));
-
     }
 
     void executeLocalizeObject(InstanceAccept<AbilityConcept> const &ability, EnvironmentData const &envData){
@@ -1108,12 +1108,11 @@ private:
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
         }
-
     }
 
     void executeIdleAgent(InstanceAccept<AbilityConcept> const &ability){
         auto const waitingTime= ability.parameters->getValue<IdleAgentAbility::waitTimeSecProperty>();
-        std::cout << "Executing: Idle Agent with "<< waitingTime.n << "seconds"<< endl;
+        std::cout << "Executing Idle Agent with "<< waitingTime.n << "seconds"<< endl;
         AndreiUtils::sleepMSec(int(waitingTime.n * 1000));
     }
 
@@ -1129,6 +1128,7 @@ private:
     }
     Instance<ConceptList<EntityConcept>> executeSeeThenMoveToObject( ConceptValue const &conceptValue, EnvironmentData &env, ConceptLibrary::Pose const &deltaPose= ConceptLibrary::Pose(), Sequence<ConceptValue> const & ignoreInstances= {}, Boolean const &useCartesian= trueBoolean, Number const &waitTimeSec= Number(1.0)) {
 
+        std::cout << "Executing SeeThenMoveToObject\n";
         Instance<ConceptList<EntityConcept>> goalObjectInstance;
         auto currentEEPose =  fromDQToPose(robot.getCurrentRobotEEPose());
         auto currentEEXYZ= currentEEPose.getTranslation();
@@ -1194,7 +1194,7 @@ private:
     }
 
     void executeSetObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
-        std::cout << "Executing: SetObjectInGripper\n";
+        std::cout << "Executing SetObjectInGripper\n";
         Gripper* gripper = robot.getGripper();
         std::string const &instanceId = object.instanceId.s;
         std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
@@ -1202,7 +1202,7 @@ private:
         AndreiUtils::sleepMSec(1000);
     }
     void executeClearObjectInGripper(const Instance<ConceptList<ObjectConcept>> object) {
-        std::cout << "Executing: ClearObjectInGripper\n";
+        std::cout << "Executing ClearObjectInGripper\n";
         std::string const &instanceId = object.instanceId.s;
         std::string const &simObjectName = AndreiUtils::mapGet(nameConvertor, instanceId);
         removeObjectFromGripper(sim->get(), simObjectName);
@@ -1210,7 +1210,7 @@ private:
     }
     void executeUpdateProprioception(EnvironmentData &env){
         // updating gripper Pose to be the same with EE pose
-        std::cout << "Executing: UpdateProprioception. Updating gripper Pose. \n";
+        std::cout << "Executing UpdateProprioception. Updating gripper Pose. \n";
         auto currentEElocation = getCurrentEEPoseOfRobot();
         auto const franka= env.getEntity("FrankaPanda");
         auto const &gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");

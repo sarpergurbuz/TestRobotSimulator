@@ -1084,7 +1084,6 @@ private:
         Eigen::Quaterniond ZinvertQuaternion(rot180_X);
         auto goalPoseInvertedZ= goalPose.addRotation(ZinvertQuaternion);
         path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
-
         //AndreiUtils::sleepMSec(1000); // MAKE THIS WAIT OPTIONAL
     }
 
@@ -1476,7 +1475,7 @@ void callSkillExecuteFunction() {
     Execution exec;
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("MilkCartonLidlInstance1");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("PlasticCupInstance2");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_into("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
@@ -1498,6 +1497,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skillGrasp.parameters, franka, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skillGrasp.parameters, gripper, false);
+    //skillGrasp.parameters->setPropertyValue<GraspSkill::useSafeGraspSelectionPoseProperty::type>("useSafeGraspSelectionPose",trueBoolean);
 
     auto const GraspResult= skillGrasp.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillGrasp.parameters);
 

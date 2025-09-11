@@ -876,9 +876,6 @@ public:
         addAbility("LocalizeObject");
 
     }
-
-    // TODO: implement compare, copy, clone, getStringRepresentation(), cloneValueDataTo
-
     using ValueDomain::compare;
 
     Boolean compare(ValueDomain const *other, InstanceCacheData &memory) const override {
@@ -886,29 +883,21 @@ public:
         if (cast == nullptr) {
             return falseBoolean;
         }
-
         if (&(this->robot) != &(cast->robot)) {
             return falseBoolean;
         }
-
         if (&(this->path) != &(cast->path)) {
             return falseBoolean;
         }
-
-
         if (this->nameConvertor != cast->nameConvertor) {
             return falseBoolean;
         }
-
-
         if (this->objectSpecificTranslationAdjustment != cast->objectSpecificTranslationAdjustment) {
             return falseBoolean;
         }
         if (&(this->sim) != &(cast->sim)) {
             return falseBoolean;
         }
-
-
         // If all checks passed
         return trueBoolean;
     }
@@ -929,7 +918,6 @@ public:
         return this->surroundRepresentationWithType("[Execution]");
     }
 
-
     void initializeEnvironmentFromSimulation(EnvironmentData const &envData) const {
         // in the function, go through all the entities of the environment and if they are contained in simulation, get their pose and update their pose with SetInstancePose
         std::vector<std::string> presentObjectsInEnv;
@@ -944,18 +932,14 @@ public:
                 continue; // Skip if the object is not in the simulation
             }
 
-            //InstanceAccept<ObjectConcept> objectInstance(objectName);
-
-            if (!envData.hasEntity(InstanceAccept<ObjectConcept>(objectName).instanceId)) {  // auto const doIhaveMilkCarton= envData.hasEntity(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1").instanceId);
+            if (!envData.hasEntity(InstanceAccept<ObjectConcept>(objectName).instanceId)) {
                 continue;
             }
             // Get pose from simulation
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose(simObjectName));
             ConceptLibrary::Pose rawPose(poseInSim);
-
             // Get object instance from env
             auto objectInstance = envData.getEntity(InstanceAccept<ObjectConcept>(objectName).instanceId);
-
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
         }
@@ -967,13 +951,10 @@ public:
             cout<< "-> Gripper both exist in simulation and envData. Initializing gripper."<< endl;
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose("/Franka/FrankaGripper"));
             ConceptLibrary::Pose rawPose(poseInSim);
-
             // Get object instance from env
             auto objectInstance = envData.getEntity(gripper.instanceId);
-
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
-
 
         }
         // Checking whether the robot exists in both the sim and env. TODO: add this to loop as well.
@@ -988,29 +969,14 @@ public:
 
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
-
         }
-
-    }
-
-    ConceptLibrary::Pose computeDeltaPoseForPreGrasp (ConceptLibrary::Pose const graspPose, InstanceAccept<GraspableObjectConcept> const objectInstance){
-
-        auto const deltaPoseGlobal = graspPose.q.addTranslation(Eigen::Vector3d(0.0, 0.0, 0.10));
-        cout<< "translated grasp point is: "<< deltaPoseGlobal.getTranslation()<<endl;
-        auto const objectLocation = objectInstance.parameters->getValue<PhysicalEntityConcept::locationProperty>();
-        auto const objectPose= objectLocation.getGlobalPose().q;
-        auto const deltaPoseToObject = objectPose.dualQuaternionInverse()*deltaPoseGlobal;
-
-        return deltaPoseToObject;
     }
 
     DualQuaternion<double> getCurrentEEPoseOfRobot(){
         return fromDQToPose(robot.getCurrentRobotEEPose());
     }
 
-
-
-    bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {
+    bool executeAbility(InstanceAccept<AbilityConcept> const &ability, EnvironmentData &env) override {  // the main function which executes the motion primitives
 
         if (ability.isSubConceptOfNoCheck("MoveRobotBodyCartesian") && !ability.isSubConceptOfNoCheck("MoveRobotBodyCartesianWithIntermediateGoals")) {
             auto const &goalLocation = ability.parameters->getValue<MoveRobotBodyCartesianAbility::goalProperty>();
@@ -1042,7 +1008,6 @@ public:
             auto const &conceptVal = ability.parameters->getValue<SeeThenMoveToObjectAbility::objectConceptToGoToProperty>();
             auto const &deltaPose = ability.parameters->getValue<SeeThenMoveToObjectAbility::deltaPoseToObjectProperty>();
             auto const &ignoreInstances = ability.parameters->getValue<SeeThenMoveToObjectAbility::ignoreInstancesOfConceptsProperty>();
-
             //auto const &useCartesian = ability.parameters->getValue<SeeThenMoveToObjectAbility::useCartesianProperty>();
             //auto const &waitTimeSec = ability.parameters->getValue<SeeThenMoveToObjectAbility::waitTimeSecProperty>();
 
@@ -1073,20 +1038,12 @@ private:
     std::map<std::string, std::string> nameConvertor;
     std::map<std::string, Eigen::Vector3d> objectSpecificTranslationAdjustment;
 
-
     void executeMoveRobotBodyCartesian(AndreiUtils::Pose  const &goalPose) {
-        std::cout << "Executing: MoveRobotBodyCartesian\n";
-        // if needed, the 2 lines below can also be used for going to the end effector pose without using PandaRobotWithGripper
-        //auto const gripper= robot.getGripper();
-        //auto const eePose= gripper->endEffectorPoseFromGripperPose(goalPose);
 
-        Eigen::AngleAxisd rot180_X(M_PI, Eigen::Vector3d::UnitX());
-        Eigen::Quaterniond ZinvertQuaternion(rot180_X);
-        auto goalPoseInvertedZ= goalPose.addRotation(ZinvertQuaternion);
+        std::cout << "Executing: MoveRobotBodyCartesian\n";
         path.simulationControlToDestination(&robot, fromPoseToDQ(goalPose));
         //AndreiUtils::sleepMSec(1000); // MAKE THIS WAIT OPTIONAL
     }
-
     void executeMoveRobotBodyCartesianWithIntermediateGoals(InstanceAccept<AbilityConcept> const &ability){
 
         auto const isGoalIncluded=ability.parameters->getValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::isGoalIncludedProperty>();
@@ -1118,9 +1075,6 @@ private:
         ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::waypointIndexUntilTimeoutReachedProperty>(Number(waypointIndexUntilTimeout));
         ability.parameters->setPropertyValue<MoveRobotBodyCartesianWithIntermediateGoalsAbility::elapsedTimeProperty>(Number(elapsedTime));
 
-
-
-
     }
 
     void executeLocalizeObject(InstanceAccept<AbilityConcept> const &ability, EnvironmentData const &envData){
@@ -1138,8 +1092,7 @@ private:
                 continue; // Skip if the object is not in the simulation
             }
 
-
-            if (!envData.hasEntity(InstanceAccept<ObjectConcept>(objectName).instanceId)) {  // auto const doIhaveMilkCarton= envData.hasEntity(InstanceAccept<ObjectConcept>("MilkCartonLidlInstance1").instanceId);
+            if (!envData.hasEntity(InstanceAccept<ObjectConcept>(objectName).instanceId)) {
                 continue;
             }
 
@@ -1150,10 +1103,8 @@ private:
             // Get pose from simulation
             AndreiUtils::Posed poseInSim = fromDQToPose(simInterface.get_object_pose(simObjectName));
             ConceptLibrary::Pose rawPose(poseInSim);
-
             // Get object instance from env
             auto objectInstance = envData.getEntity(InstanceAccept<ObjectConcept>(objectName).instanceId);
-
             // Set the pose into the environment
             SetInstancePose::eval(objectInstance, rawPose);
         }
@@ -1197,8 +1148,6 @@ private:
         }
         auto currentEEPose =  fromDQToPose(robot.getCurrentRobotEEPose());
         auto currentEEXYZ= currentEEPose.getTranslation();
-
-
 
         if (!gripperFound) {
             std::cerr << "[SeeThenMove] No gripper found in env.entities\n";
@@ -1306,7 +1255,6 @@ private:
         removeObjectFromGripper(sim->get(), simObjectName);
         AndreiUtils::sleepMSec(1000);
     }
-
     void executeUpdateProprioception(EnvironmentData &env){
         // updating gripper Pose to be the same with EE pose
         std::cout << "Executing: UpdateProprioception. Updating gripper Pose. \n";
@@ -1387,7 +1335,7 @@ void testMotionPrimitiveExecution() {
     }
     cout << "Determined location: " << graspLocation.getStringRepresentation() << endl;
     auto const graspPosetest= graspLocation.get().getGlobalPose();
-    auto const deltaPoseToObject = exec.computeDeltaPoseForPreGrasp(graspPosetest,graspableObjInstance_BowlGrey);
+    //auto const deltaPoseToObject = exec.computeDeltaPoseForPreGrasp(graspPosetest,graspableObjInstance_BowlGrey);
     auto const graspXYZ= graspLocation.get().getGlobalPose().q.getTranslation();
     auto const graspRotAngles= graspLocation.get().getGlobalPose().q.getRotation();
 
@@ -1443,7 +1391,7 @@ void testMotionPrimitiveExecution() {
     instancePropertiesSeeThenMove.setPropertyValue<ConceptValue>("objectConceptToGoTo", conceptVal );
     instancePropertiesSeeThenMove.setPropertyValue<InstanceAccept<AgentConcept>>("executor", franka);
     //instancePropertiesSeeThenMove.setPropertyValue<Sequence<ConceptValue>>("ignoreInstancesOfConcepts", ignoreThese);
-    instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPoseToObject);
+    //instancePropertiesSeeThenMove.setPropertyValue<ConceptLibrary::Pose>("deltaPoseToObject", deltaPoseToObject);   // commented this out because computeDeltaPoseToObject function is not available in Execution class anymore
     InstanceAccept<AbilityConcept> seeThenMove("testSeeThenMoveToObject", {"SeeThenMoveToObject"}, instancePropertiesSeeThenMove);
 
 
@@ -1475,7 +1423,7 @@ void callSkillExecuteFunction() {
     Execution exec;
 
     franka.parameters->setPropertyValue<ConceptLibrary::EntityWithExecutorConcept::executorProperty::type>("executor", exec);
-    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("PlasticCupInstance2");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
+    InstanceAccept<GraspableObjectConcept> graspableObjInstance_from("MilkCartonLidlInstance1");  // "MilkCartonLidlInstance1" ,  "PlasticCupInstance2"
     InstanceAccept<GraspableObjectConcept> graspableObjInstance_into("BowlGreyIkeaInstance");
     InstanceAccept<GripperConcept> gripper = AndreiUtils::mapGet<String>(franka.parameters->getValue<AgentConcept::grippersProperty>().m, "FrankaPanda_FrankaGripper");
     InstanceAccept<EntityConcept> groundInstance("GroundInstance");
@@ -1497,7 +1445,7 @@ void callSkillExecuteFunction() {
     AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skillGrasp.parameters, franka, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_from, false);
     AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skillGrasp.parameters, gripper, false);
-    //skillGrasp.parameters->setPropertyValue<GraspSkill::useSafeGraspSelectionPoseProperty::type>("useSafeGraspSelectionPose",trueBoolean);
+    skillGrasp.parameters->setPropertyValue<GraspSkill::useSafeGraspSelectionPoseProperty::type>("useSafeGraspSelectionPose",trueBoolean);
 
     auto const GraspResult= skillGrasp.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillGrasp.parameters);
 

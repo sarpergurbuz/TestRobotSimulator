@@ -14,6 +14,7 @@
 #include <AndreiUtils/utilsPose.hpp>
 #include <AndreiUtils/utilsThread.h>
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianAbility.h>
+#include <ConceptLibrary/concepts/ConceptManager.h>
 #include <ConceptLibrary/abilities/MoveGripperAbility.h>
 #include <ConceptLibrary/abilities/SetObjectInGripperAbility.h>
 #include <ConceptLibrary/abilities/MoveRobotBodyCartesianWithIntermediateGoalsAbility.h>
@@ -22,11 +23,16 @@
 #include <ConceptLibrary/abilities/IdleAgentAbility.h>
 #include <ConceptLibrary/abilities/SeeThenMoveToObjectAbility.h>
 #include <ConceptLibrary/entities/FrankaRobotConcept.h>
+#include <ConceptLibrary/entities/GraspableObjectConcept.h>
 #include <ConceptLibrary/entities/OpenableObjectConcept.h>
 #include <ConceptLibrary/entities/PourerConcept.h>
 #include <ConceptLibrary/entities/PourerSurfaceConcept.h>
 #include <ConceptLibrary/entities/PouringSurfaceConcept.h>
+#include <ConceptLibrary/functions/core/EnvironmentDataFunctions.h>
+#include <ConceptLibrary/functions/ExecutorFunctions.h>
+#include <ConceptLibrary/functions/BehaviorTreeFunctions.h>
 #include <ConceptLibrary/functions/EnvironmentDataFunctions.h>
+#include <ConceptLibrary/functions/InstanceFunctions.h>
 #include <ConceptLibrary/instances/utils.h>
 #include <ConceptLibrary/LibraryInit.h>
 #include <ConceptLibrary/skills/GraspSkill.h>
@@ -53,6 +59,7 @@ using namespace Eigen;
 using namespace std;
 using namespace PerceptionData;
 using namespace RobotModelling;
+
 
 using ObjectInstance = Instance<ConceptList<ObjectConcept>>;
 using SurfaceInstance = Instance<ConceptList<SurfaceConcept>>;
@@ -1385,7 +1392,7 @@ void callSkillExecuteFunction() {
     //skill.parameters->setPropertyValue<GraspSkill::fromLocationProperty::type>("location", Location{});
 
     EnvironmentData envData;
-    // TODO: add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
+    // add the agent, gripper and object (and possibly others...) to the environmentData. Use AddAgentToEnvironment and AddObjectToEnvironment Functions
     AddAgentToEnvironment::eval(envData, InstanceAccept<AgentConcept>{franka});
     AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_from} );
     AddObjectToEnvironment::eval(envData, InstanceAccept<ObjectConcept>{graspableObjInstance_into} );
@@ -1393,14 +1400,16 @@ void callSkillExecuteFunction() {
 
 
     exec.initializeEnvironmentFromSimulation(envData); // setting current locations
-    // TODO: set skill properties: agent, gripper and object...
-    auto graspEntitySetters = SkillConcept::getPropertySetters(GraspSkill::getName());
-    AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skillGrasp.parameters, franka, false);
-    AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_from, false);
-    AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skillGrasp.parameters, gripper, false);
+    // set skill properties: agent, gripper and object...
+    auto graspEntitySetters = ConceptManager::getPropertySetters(GraspSkill::getName());
+    AndreiUtils::mapGet<string>(graspEntitySetters, "a")(*skillGrasp.parameters, franka);
+    AndreiUtils::mapGet<string>(graspEntitySetters, "o")(*skillGrasp.parameters, graspableObjInstance_from);
+    AndreiUtils::mapGet<string>(graspEntitySetters, "g")(*skillGrasp.parameters, gripper);
     skillGrasp.parameters->setPropertyValue<GraspSkill::useSafeGraspSelectionPoseProperty::type>("useSafeGraspSelectionPose",trueBoolean);
 
     auto const GraspResult= skillGrasp.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillGrasp.parameters);
+    skillGrasp.parameters->callFunction<void, const EnvironmentData &, ConceptParameters &>("effects",envData, *skillGrasp.parameters); // right after execution, calling the effects of the function
+
 
 
 
@@ -1408,10 +1417,10 @@ void callSkillExecuteFunction() {
 
     InstanceAccept<SkillConcept> skillTransport("TestTransportSkill", {TransportSkill::getName()}, nlohmann::json{});
     skillTransport.parameters->setPropertyValue<TransportSkill::toLocationProperty::type>("toLocation", Location{goalForBowl});
-    auto transportEntitySetters = SkillConcept::getPropertySetters(TransportSkill::getName());
-    AndreiUtils::mapGet<string>(transportEntitySetters, "a")(*skillTransport.parameters, franka, false);
-    AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_from, false);
-    AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper, false);
+    auto transportEntitySetters = ConceptManager::getPropertySetters(TransportSkill::getName());
+    AndreiUtils::mapGet<string>(transportEntitySetters, "a")(*skillTransport.parameters, franka);
+    AndreiUtils::mapGet<string>(transportEntitySetters, "o")(*skillTransport.parameters, graspableObjInstance_from);
+    AndreiUtils::mapGet<string>(transportEntitySetters, "g")(*skillTransport.parameters, gripper);
 
     //auto const TransportResult= skillTransport.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillTransport.parameters);
 
@@ -1424,23 +1433,25 @@ void callSkillExecuteFunction() {
     skillPour.parameters->setPropertyValue<PourSkill::timeProperty::type>("time",Number(1.5));
     skillPour.parameters->setPropertyValue<PourSkill::amountProperty::type>("amount", Number(-0.05));
     skillPour.parameters->setPropertyValue<PourSkill::spinAngleProperty::type>("spinAngle", Number(-0.2));
-    auto pourEntitySetters = SkillConcept::getPropertySetters(PourSkill::getName());
-    AndreiUtils::mapGet<string>(pourEntitySetters, "a")(*skillPour.parameters, franka, false);
-    AndreiUtils::mapGet<string>(pourEntitySetters, "g")(*skillPour.parameters, gripper, false);
+    auto pourEntitySetters = ConceptManager::getPropertySetters(PourSkill::getName());
+    AndreiUtils::mapGet<string>(pourEntitySetters, "a")(*skillPour.parameters, franka);
+    AndreiUtils::mapGet<string>(pourEntitySetters, "g")(*skillPour.parameters, gripper);
 
-    auto const PourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters);
+    auto const pourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters);
+    //skillPour.parameters->callFunction<void, const EnvironmentData &, ConceptParameters &>("effects",envData, *skillPour.parameters); // right after execution, calling the effects of the function
 
 
     auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1, 0, 0, 0}, Eigen::Vector3d{0.4, 0.03, 0.0}});
 
     InstanceAccept<SkillConcept> skillRelease("TestReleaseSkill", {ReleaseSkill::getName()}, nlohmann::json{});
     skillRelease.parameters->setPropertyValue<ReleaseSkill::toLocationProperty::type>("toLocation", Location{goalForRelease});
-    auto releaseEntitySetters = SkillConcept::getPropertySetters(ReleaseSkill::getName());
-    AndreiUtils::mapGet<string>(releaseEntitySetters, "a")(*skillRelease.parameters, franka, false);
-    AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_from, false);
-    AndreiUtils::mapGet<string>(releaseEntitySetters, "g")(*skillRelease.parameters, gripper, false);
+    auto releaseEntitySetters = ConceptManager::getPropertySetters(ReleaseSkill::getName());
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "a")(*skillRelease.parameters, franka);
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "o")(*skillRelease.parameters, graspableObjInstance_from);
+    AndreiUtils::mapGet<string>(releaseEntitySetters, "g")(*skillRelease.parameters, gripper);
 
-    auto const ReleaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters);
+    auto const releaseResult= skillRelease.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillRelease.parameters);
+    skillRelease.parameters->callFunction<void, const EnvironmentData &, ConceptParameters &>("effects",envData, *skillRelease.parameters); // right after execution, calling the effects of the function
 
     AndreiUtils::sleepMSec(3000);
 

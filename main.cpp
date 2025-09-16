@@ -1431,14 +1431,14 @@ void callSkillExecuteFunction() {
     skillPour.parameters->setPropertyValue<PourSkill::angleProperty::type>("angle", Number(1.577));
     //skillPour.parameters->setPropertyValue<PourSkill::directionProperty::type>("direction",Number(0) );
     skillPour.parameters->setPropertyValue<PourSkill::timeProperty::type>("time",Number(1.5));
-    skillPour.parameters->setPropertyValue<PourSkill::amountProperty::type>("amount", Number(-0.05));
+    skillPour.parameters->setPropertyValue<PourSkill::amountProperty::type>("amount", Number(0.15));
     skillPour.parameters->setPropertyValue<PourSkill::spinAngleProperty::type>("spinAngle", Number(-0.2));
     auto pourEntitySetters = ConceptManager::getPropertySetters(PourSkill::getName());
     AndreiUtils::mapGet<string>(pourEntitySetters, "a")(*skillPour.parameters, franka);
     AndreiUtils::mapGet<string>(pourEntitySetters, "g")(*skillPour.parameters, gripper);
 
     auto const pourResult= skillPour.parameters->callFunction<ConceptLibrary::Boolean, EnvironmentData &, ConceptParameters &>("execution", envData, *skillPour.parameters);
-    //skillPour.parameters->callFunction<void, const EnvironmentData &, ConceptParameters &>("effects",envData, *skillPour.parameters); // right after execution, calling the effects of the function
+    skillPour.parameters->callFunction<void, EnvironmentData const &, ConceptParameters &>("effects",envData, *skillPour.parameters); // right after execution, calling the effects of the function
 
 
     auto const goalForRelease= ConceptLibrary::Pose(AndreiUtils::Posed {Eigen::Quaterniond{1, 0, 0, 0}, Eigen::Vector3d{0.4, 0.03, 0.0}});
